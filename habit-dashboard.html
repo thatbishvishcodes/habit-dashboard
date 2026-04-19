@@ -1,0 +1,1422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Habit Dashboard</title>
+<link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22Habit%20Dashboard%22%2C%22short_name%22%3A%22Habits%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230d0d0d%22%2C%22theme_color%22%3A%22%237c3aed%22%7D">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Habit Dashboard">
+<meta name="theme-color" content="#0d0d0d">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --violet:#7c3aed;--teal:#0d9488;--bg:#0d0d0d;
+  --affbg1:#92400e;--affbg2:#9f1239;--affbg3:#78350f;
+}
+html{height:100%;-webkit-tap-highlight-color:transparent}
+body{min-height:100%;background:#0d0d0d;font-family:'Inter',sans-serif;color:#fff;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+
+/* ── TABS ── */
+.tab-bar{position:sticky;top:0;z-index:100;background:#0d0d0d;border-bottom:1px solid #1f1f1f;display:flex;position:relative}
+.tab-btn{flex:1;padding:16px 8px;background:none;border:none;color:#666;font-family:'Press Start 2P',monospace;font-size:8px;cursor:pointer;transition:color .2s;position:relative;z-index:1}
+.tab-btn.active{color:#fff}
+.tab-indicator{position:absolute;bottom:0;height:2px;background:linear-gradient(90deg,var(--violet),var(--teal));transition:left .3s cubic-bezier(.4,0,.2,1),width .3s cubic-bezier(.4,0,.2,1)}
+
+/* ── SECTIONS ── */
+.section{display:none;min-height:calc(100vh - 53px);padding:0 0 80px}
+.section.active{display:block}
+
+/* ── VAPE SECTION ── */
+#vape-section{
+  background:var(--bg);
+  background-image:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(255,255,255,.015) 2px,rgba(255,255,255,.015) 4px),repeating-linear-gradient(90deg,transparent,transparent 4px,rgba(255,255,255,.01) 4px,rgba(255,255,255,.01) 8px);
+}
+
+/* ── AFFIRMATIONS SECTION ── */
+#affirmations-section{
+  background:linear-gradient(160deg,var(--affbg1) 0%,var(--affbg2) 50%,var(--affbg3) 100%);
+  position:relative;
+  animation:bgBreathe 8s ease-in-out infinite;
+}
+@keyframes bgBreathe{
+  0%,100%{filter:brightness(1)}
+  50%{filter:brightness(1.06)}
+}
+#affirmations-section::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.12'/%3E%3C/svg%3E");
+  opacity:.4;
+}
+#affirmations-section>*{position:relative;z-index:1}
+
+/* ── SHARED SECTION HEADER ── */
+.section-header{display:flex;align-items:center;justify-content:flex-end;padding:16px 20px 0}
+.refresh-btn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#fff;width:36px;height:36px;border-radius:8px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:background .2s}
+.refresh-btn:hover{background:rgba(255,255,255,.15)}
+.refresh-btn.spinning{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── ERROR BANNER ── */
+.error-banner{display:none;background:rgba(220,38,38,.15);border:1px solid rgba(220,38,38,.3);color:#fca5a5;padding:10px 16px;margin:12px 20px;border-radius:8px;font-size:12px;line-height:1.5}
+.error-banner.show{display:block}
+
+/* ── SKELETON ── */
+.skeleton{background:linear-gradient(90deg,#1a1a1a 25%,#252525 50%,#1a1a1a 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:8px}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.skeleton-block{height:120px;margin:16px 20px;border-radius:12px}
+.skeleton-sm{height:60px;margin:12px 20px;border-radius:8px}
+.skeletons{padding:4px 0}
+
+/* ── CARD ── */
+.card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:20px;margin:16px 20px}
+.card-warm{background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:20px;margin:16px 20px}
+
+/* ── VAPE DAILY REMINDER ── */
+.vape-reminder{text-align:center;padding:16px 28px 0;font-size:11px;font-style:italic;color:var(--teal);letter-spacing:.02em;line-height:1.5;opacity:.85}
+
+/* ── IDENTITY CARD ── */
+.identity-card{text-align:center;padding:16px 20px 20px}
+.level-badge{display:inline-block;font-family:'Press Start 2P',monospace;font-size:7px;color:var(--teal);letter-spacing:2px;text-transform:uppercase;border:1px solid var(--teal);padding:4px 10px;border-radius:4px;margin-bottom:12px}
+.level-title{font-family:'Press Start 2P',monospace;font-size:20px;color:#fff;margin-bottom:12px;text-shadow:0 0 20px rgba(124,58,237,.6)}
+
+/* ── HOURS RECLAIMED HERO ── */
+.hours-reclaimed{font-family:'Press Start 2P',monospace;font-size:15px;color:#fff;margin:4px 0 10px;text-shadow:0 0 24px rgba(124,58,237,.6);line-height:1.5;letter-spacing:.01em}
+.hours-reclaimed .hrs-num{font-size:36px;display:block;margin-bottom:4px;text-shadow:0 0 30px rgba(124,58,237,.7)}
+.next-milestone-text{font-size:11px;color:#666;margin-bottom:14px;line-height:1.5}
+.next-milestone-text strong{color:var(--teal)}
+
+/* ── LAST SESSION BLOCK ── */
+.last-session-block{margin:0 20px 16px;background:rgba(124,58,237,.07);border:1px solid rgba(124,58,237,.18);border-radius:16px;padding:22px 24px;text-align:center}
+.last-session-main{font-family:'Press Start 2P',monospace;font-size:16px;color:#fff;margin-bottom:6px;letter-spacing:.01em}
+.last-session-sub{font-size:11px;color:#555;line-height:1.5}
+
+/* ── MILESTONE BADGES ── */
+.badges-row{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;padding:0 8px 4px}
+.milestone-badge{display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 9px;background:rgba(13,148,136,.1);border:1px solid rgba(13,148,136,.25);border-radius:8px;min-width:52px}
+.milestone-badge-icon{font-size:20px;line-height:1}
+.milestone-badge-label{font-size:6px;color:var(--teal);font-family:'Press Start 2P',monospace;text-align:center;line-height:1.4}
+
+/* ── TODAY RECAP ── */
+.today-card{margin:0 20px 16px;background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.2);border-radius:16px;padding:20px}
+.today-title{font-family:'Press Start 2P',monospace;font-size:8px;color:var(--violet);margin-bottom:16px;letter-spacing:1px}
+.today-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px}
+.today-stat{text-align:center}
+.today-stat-num{font-family:'Press Start 2P',monospace;font-size:14px;color:#fff;display:block;margin-bottom:4px}
+.today-stat-label{font-size:10px;color:#666}
+.ring-wrap{display:flex;flex-direction:column;align-items:center;gap:8px}
+.ring-svg{width:90px;height:90px;transform:rotate(-90deg)}
+.ring-bg{fill:none;stroke:#1f1f1f;stroke-width:3}
+.ring-fill{fill:none;stroke:url(#ringGrad);stroke-width:3;stroke-linecap:round;transition:stroke-dashoffset 1.2s cubic-bezier(.4,0,.2,1)}
+.ring-fill.complete{stroke:#f59e0b}
+.ring-label{font-size:11px;color:#888;text-align:center}
+.goal-complete{font-family:'Press Start 2P',monospace;font-size:7px;color:#f59e0b;text-align:center;margin-top:4px;animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+
+/* ── RECORDS GRID ── */
+.records-title{font-family:'Press Start 2P',monospace;font-size:8px;color:#555;padding:0 20px;margin-bottom:12px;letter-spacing:1px}
+.records-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 20px;margin-bottom:4px}
+.record-card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:16px 12px;text-align:center}
+.record-card.full{grid-column:1/-1}
+.record-val{font-family:'Press Start 2P',monospace;font-size:18px;color:#fff;display:block;margin-bottom:4px}
+.record-val.teal{color:var(--teal)}
+.record-label{font-size:10px;color:#555}
+.record-sub{font-size:9px;color:#444;display:block;margin-top:2px}
+.week-compare{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 20px 16px}
+.week-card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:14px;text-align:center}
+.week-label{font-size:10px;color:#555;margin-bottom:6px}
+.week-change{font-size:20px;font-weight:600;display:block}
+.week-change.up{color:var(--teal)}
+.week-change.down{color:var(--violet)}
+.week-change.neutral{color:#666}
+.week-sub{font-size:9px;color:#555;display:block;margin-top:2px}
+
+/* ── AFFIRMATIONS CONTENT ── */
+.aff-inner{padding:0}
+
+/* Hero anchor line */
+.aff-hero-line{
+  font-family:'Playfair Display',serif;font-size:22px;font-weight:700;
+  color:#f5c842;text-align:center;padding:36px 28px 4px;
+  letter-spacing:.01em;line-height:1.35;
+  text-shadow:0 2px 18px rgba(245,200,66,.25);
+}
+
+/* Daily intention */
+.aff-intention{
+  font-family:'Playfair Display',serif;font-size:14px;font-style:italic;
+  color:rgba(255,255,255,.55);text-align:center;
+  padding:0 32px 28px;line-height:1.6;
+}
+
+/* Flame section */
+.flame-section{display:flex;flex-direction:column;align-items:center;padding:8px 20px 24px}
+.flame-wrap{position:relative;width:100px;height:140px;margin-bottom:16px}
+.flame-layer{position:absolute;bottom:0;left:50%;border-radius:50% 50% 20% 20% / 60% 60% 40% 40%}
+.flame-outer-l{width:80px;height:120px;transform:translateX(-50%);background:radial-gradient(ellipse at 50% 90%,#fbbf24 10%,#ea580c 45%,#7f1d1d 85%,transparent);opacity:.6;animation:ff 1.2s ease-in-out infinite alternate}
+.flame-mid-l{width:60px;height:95px;transform:translateX(-50%);background:radial-gradient(ellipse at 50% 85%,#fde68a 5%,#f97316 35%,#b91c1c 75%,transparent);animation:ff 1.5s ease-in-out infinite alternate-reverse}
+.flame-inner-l{width:36px;height:60px;transform:translateX(-50%);background:radial-gradient(ellipse at 50% 80%,#fff7ed,#fef3c7 20%,#fcd34d 50%,transparent);animation:ff 1.8s ease-in-out infinite alternate}
+@keyframes ff{0%{transform:translateX(-50%) scale(1) rotate(-1.5deg)}100%{transform:translateX(-50%) scale(1.04) rotate(1.5deg)}}
+.flame-wrap.dim .flame-outer-l,.flame-wrap.dim .flame-mid-l,.flame-wrap.dim .flame-inner-l{background:radial-gradient(ellipse at 50% 85%,#4b5563,#374151,#1f2937,transparent);animation:none;opacity:.5}
+.flame-wrap.small{transform:scale(.85)}
+.flame-wrap.medium{transform:scale(1)}
+.flame-wrap.large{transform:scale(1.15);filter:drop-shadow(0 0 12px rgba(251,146,60,.4))}
+.flame-wrap.blazing{transform:scale(1.3);filter:drop-shadow(0 0 20px rgba(251,146,60,.6))}
+.flame-wrap.golden .flame-outer-l,.flame-wrap.golden .flame-mid-l,.flame-wrap.golden .flame-inner-l{background:radial-gradient(ellipse at 50% 85%,#fff 5%,#fde68a 20%,#f59e0b 50%,#d97706 75%,transparent)}
+.flame-wrap.golden{transform:scale(1.4);filter:drop-shadow(0 0 28px rgba(245,158,11,.8));animation:goldPulse 2s ease-in-out infinite}
+@keyframes goldPulse{0%,100%{filter:drop-shadow(0 0 28px rgba(245,158,11,.8))}50%{filter:drop-shadow(0 0 40px rgba(245,158,11,1))}}
+.streak-msg{font-family:'Playfair Display',serif;font-size:16px;font-style:italic;color:rgba(255,255,255,.8);text-align:center;max-width:260px;line-height:1.5}
+.streak-days-big{font-family:'Playfair Display',serif;font-size:48px;font-weight:700;color:#fff;text-align:center;line-height:1;margin-bottom:2px}
+.streak-days-label{font-size:11px;color:rgba(255,255,255,.5);text-align:center;letter-spacing:2px;text-transform:uppercase;margin-bottom:16px}
+
+/* Stats */
+.aff-stats{display:flex;flex-direction:column;gap:10px;padding:0 20px;margin-bottom:20px}
+.aff-stat-card{background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:18px 20px;text-align:center}
+.aff-stat-val{font-family:'Playfair Display',serif;font-size:28px;font-weight:700;color:#fff;display:block;margin-bottom:4px}
+.aff-stat-label{font-size:12px;color:rgba(255,255,255,.5);line-height:1.5;display:block}
+.aff-stat-sub{font-size:12px;color:rgba(255,255,255,.5);display:block;margin-top:4px;font-style:italic}
+
+/* Week stat — no card, just plain centred text */
+.aff-week-plain{text-align:center;padding:4px 20px 4px;font-family:'Playfair Display',serif;font-size:15px;color:rgba(255,255,255,.65);line-height:1.6}
+.aff-week-plain span{color:#fff;font-weight:700}
+
+/* Bottom anchor */
+.aff-bottom-line{
+  text-align:center;padding:20px 32px 36px;
+  font-size:12px;font-style:italic;
+  color:rgba(255,255,255,.3);line-height:1.7;
+}
+
+/* ── REPORT BUTTON ── */
+.report-section{padding:16px 20px 0}
+.report-btn{width:100%;padding:14px;background:transparent;border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.5);border-radius:10px;font-size:12px;cursor:pointer;transition:all .2s;letter-spacing:.5px}
+.report-btn:hover{border-color:rgba(255,255,255,.3);color:rgba(255,255,255,.8)}
+.report-btn-aff{width:100%;padding:14px;background:transparent;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.5);border-radius:10px;font-size:12px;cursor:pointer;transition:all .2s;letter-spacing:.5px;margin:0 20px;width:calc(100% - 40px);display:block}
+.report-btn-aff:hover{border-color:rgba(255,255,255,.4);color:rgba(255,255,255,.8)}
+
+/* ── SECTION PADDING ── */
+.section-pad{padding:0 0 8px}
+
+/* ── CONSISTENCY STRIP ── */
+.consistency-card{margin:0 20px 16px;background:rgba(124,58,237,.06);border:1px solid rgba(124,58,237,.15);border-radius:16px;padding:16px}
+.consistency-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.consistency-title{font-family:'Press Start 2P',monospace;font-size:7px;color:var(--violet);letter-spacing:1px}
+.consistency-count{font-size:11px;color:#555}
+.consistency-days{display:flex;justify-content:space-between;gap:4px;margin-bottom:10px}
+.day-dot{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px}
+.day-dot-inner{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;border:2px solid #2a2a2a;color:#2a2a2a;transition:all .3s}
+.day-dot.hit .day-dot-inner{background:linear-gradient(135deg,var(--violet),var(--teal));border-color:var(--teal);color:#fff;box-shadow:0 0 8px rgba(13,148,136,.35)}
+.day-dot.today-dot .day-dot-inner{border-color:var(--violet);color:var(--violet);animation:pulseBorder 2s ease-in-out infinite}
+.day-dot.miss .day-dot-inner{background:#111;border-color:#1f1f1f;color:#333}
+.day-dot-lbl{font-size:8px;color:#444;font-family:'Press Start 2P',monospace}
+.day-dot.hit .day-dot-lbl{color:var(--teal)}
+.day-dot.today-dot .day-dot-lbl{color:var(--violet)}
+@keyframes pulseBorder{0%,100%{box-shadow:0 0 0 rgba(124,58,237,0)}50%{box-shadow:0 0 8px rgba(124,58,237,.5)}}
+.consistency-footer{font-size:11px;color:#555;text-align:center;line-height:1.4}
+.consistency-footer strong{color:var(--teal)}
+/* ── MOTHER LOCKED ── */
+.level-locked .level-title{filter:blur(3px);user-select:none}
+.mother-coming{font-size:10px;color:#555;letter-spacing:2px;text-transform:uppercase;margin-top:4px;font-family:'Press Start 2P',monospace}
+
+/* ── SINGLE BADGE ── */
+.single-badge{font-size:52px;line-height:1;margin:10px 0 4px;display:block;filter:drop-shadow(0 0 12px rgba(255,255,255,.2))}
+
+/* ── 8 WEEK CHALLENGE ── */
+.challenge-card{margin:0 20px 16px;background:rgba(13,148,136,.05);border:1px solid rgba(13,148,136,.18);border-radius:16px;padding:18px 20px}
+.challenge-title{font-family:'Press Start 2P',monospace;font-size:7px;color:var(--teal);letter-spacing:1px;margin-bottom:12px}
+.challenge-week{font-size:13px;color:#ccc;margin-bottom:10px;line-height:1.5}
+.challenge-week strong{color:#fff}
+.challenge-bar-outer{height:10px;background:#111;border:1px solid #222;border-radius:2px;overflow:hidden;margin-bottom:5px;position:relative}
+.challenge-bar-inner{height:100%;background:linear-gradient(90deg,var(--violet),var(--teal));transition:width 1s cubic-bezier(.4,0,.2,1);position:relative}
+.challenge-bar-inner::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent,transparent 10px,rgba(255,255,255,.07) 10px,rgba(255,255,255,.07) 12px)}
+.challenge-ticks{display:flex;justify-content:space-between;margin-bottom:8px;padding:0 1px}
+.challenge-tick{font-size:7px;color:#333;font-family:'Press Start 2P',monospace}
+.challenge-tick.done{color:var(--teal)}
+.challenge-meta{font-size:11px;color:#555;margin-bottom:5px;line-height:1.5}
+.challenge-msg{font-size:12px;color:rgba(255,255,255,.5);font-style:italic}
+
+/* ── DAILY BANNER ── */
+.daily-banner{background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.18);border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:11px;color:#888;text-align:center;line-height:1.6}
+.daily-banner strong{color:rgba(255,255,255,.85)}
+.daily-banner.goal-hit{background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.25);color:#f59e0b;font-family:'Press Start 2P',monospace;font-size:8px;line-height:1.8}
+
+@media(min-width:500px){
+  .tab-bar,.section{max-width:430px;margin:0 auto}
+  .section{box-shadow:0 0 40px rgba(0,0,0,.5)}
+}
+</style>
+</head>
+<body>
+
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="vape" onclick="switchTab('vape')">Vape Free</button>
+  <button class="tab-btn" data-tab="affirmations" onclick="switchTab('affirmations')">Affirmations</button>
+  <div class="tab-indicator" id="tabIndicator"></div>
+</div>
+
+<!-- VAPE SECTION -->
+<div class="section active" id="vape-section">
+  <div class="section-header">
+    <button class="refresh-btn" id="vapeRefreshBtn" title="Refresh" onclick="loadVapeData(true)">↻</button>
+  </div>
+  <div class="error-banner" id="vapeError"></div>
+  <div id="vapeSkeletons" class="skeletons">
+    <div class="skeleton skeleton-block"></div>
+    <div class="skeleton skeleton-sm"></div>
+    <div class="skeleton skeleton-block"></div>
+    <div class="skeleton skeleton-sm"></div>
+    <div class="skeleton skeleton-sm"></div>
+  </div>
+  <div id="vapeContent" style="display:none">
+    <svg width="0" height="0" style="position:absolute">
+      <defs>
+        <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" style="stop-color:#7c3aed"/>
+          <stop offset="100%" style="stop-color:#0d9488"/>
+        </linearGradient>
+      </defs>
+    </svg>
+
+    <!-- Rotating daily reminder -->
+    <div class="vape-reminder" id="vapeReminder"></div>
+
+    <!-- Identity -->
+    <div class="identity-card" id="identityCard">
+      <div class="level-badge" id="levelBadge">LVL 1</div>
+      <div class="level-title" id="levelTitle">—</div>
+      <div id="motherComing" class="mother-coming" style="display:none">??? coming soon</div>
+      <div class="hours-reclaimed" id="hoursReclaimed">
+        <span class="hrs-num" id="lifetimeHours">0</span>hours reclaimed
+      </div>
+      <div class="single-badge" id="singleBadge"></div>
+      <div class="next-milestone-text" id="nextMilestoneText"></div>
+    </div>
+
+    <!-- 8 Week Challenge -->
+    <div class="challenge-card" id="challengeCard">
+      <div class="challenge-title">8 WEEK QUIT CHALLENGE</div>
+      <div class="challenge-week" id="challengeWeek">Week 1 of 8</div>
+      <div class="challenge-bar-outer">
+        <div class="challenge-bar-inner" id="challengeBarFill" style="width:0%"></div>
+      </div>
+      <div class="challenge-ticks" id="challengeTicks"></div>
+      <div class="challenge-meta" id="challengeMeta"></div>
+      <div class="challenge-msg" id="challengeMsg"></div>
+    </div>
+
+    <!-- Today -->
+    <div class="today-card">
+      <div class="daily-banner" id="dailyBanner"></div>
+      <div class="today-title">TODAY'S RECAP</div>
+      <div style="display:flex;gap:16px;align-items:center">
+        <div class="today-grid" style="flex:1">
+          <div class="today-stat"><span class="today-stat-num" id="todaySessions">0</span><span class="today-stat-label">sessions</span></div>
+          <div class="today-stat"><span class="today-stat-num" id="todayMins">0</span><span class="today-stat-label">minutes</span></div>
+          <div class="today-stat"><span class="today-stat-num" id="todayResist">0</span><span class="today-stat-label">resisted</span></div>
+        </div>
+        <div class="ring-wrap">
+          <svg class="ring-svg" viewBox="0 0 36 36">
+            <circle class="ring-bg" cx="18" cy="18" r="15.9"/>
+            <circle class="ring-fill" id="ringFill" cx="18" cy="18" r="15.9"
+              stroke-dasharray="99.9 99.9" stroke-dashoffset="99.9"/>
+          </svg>
+          <div class="ring-label" id="ringLabel">/ 4h</div>
+          <div class="goal-complete" id="goalComplete" style="display:none">★ GOAL!</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 10-day consistency strip -->
+    <div class="consistency-card">
+      <div class="consistency-header">
+        <span class="consistency-title">10-DAY WINDOW</span>
+        <span class="consistency-count" id="consistencyCount">0 / 10 qualifying</span>
+      </div>
+      <div class="consistency-days" id="consistencyDays"></div>
+      <div class="consistency-footer" id="consistencyFooter"></div>
+    </div>
+
+    <!-- Last session — full width, between strip and records -->
+    <div class="last-session-block">
+      <div class="last-session-main" id="lastSessionTime">—</div>
+      <div class="last-session-sub" id="lastSessionSub">—</div>
+    </div>
+
+    <!-- Records 2×2 -->
+    <div class="records-title">RECORDS</div>
+    <div class="records-grid">
+      <div class="record-card">
+        <span class="record-val teal" id="recLongestQual">0</span>
+        <span class="record-label">Longest Streak</span>
+        <span class="record-sub">days</span>
+      </div>
+      <div class="record-card">
+        <span class="record-val" id="bestDayMins">0</span>
+        <span class="record-label">Best Day</span>
+        <span class="record-sub" id="bestDayDate">—</span>
+      </div>
+    </div>
+    <div class="records-grid" style="margin-top:0">
+      <div class="record-card">
+        <span class="record-val" id="totalResist">0</span>
+        <span class="record-label">All Time Resistances</span>
+      </div>
+      <div class="record-card">
+        <span class="record-val" id="totalSessions">0</span>
+        <span class="record-label">Total Sessions</span>
+      </div>
+    </div>
+
+    <!-- This week vs last -->
+    <div class="records-title" style="margin-top:4px">THIS WEEK VS LAST</div>
+    <div class="week-compare">
+      <div class="week-card">
+        <div class="week-label">Minutes</div>
+        <span class="week-change" id="weekMinsChange">—</span>
+        <span class="week-sub" id="weekMinsSub">—</span>
+      </div>
+      <div class="week-card">
+        <div class="week-label">Resistances</div>
+        <span class="week-change" id="weekResistChange">—</span>
+        <span class="week-sub" id="weekResistSub">—</span>
+      </div>
+    </div>
+
+    <div class="report-section">
+      <button class="report-btn" onclick="sendVapeReport()">✉ Send Weekly Report</button>
+    </div>
+  </div>
+</div>
+
+<!-- AFFIRMATIONS SECTION -->
+<div class="section" id="affirmations-section">
+  <div class="section-header">
+    <button class="refresh-btn" id="affRefreshBtn" title="Refresh" onclick="loadAffirmationsData(true)">↻</button>
+  </div>
+  <div class="error-banner" id="affError"></div>
+  <div id="affSkeletons" class="skeletons">
+    <div class="skeleton skeleton-block" style="height:200px;background:rgba(0,0,0,.2)"></div>
+    <div class="skeleton skeleton-sm" style="background:rgba(0,0,0,.2)"></div>
+    <div class="skeleton skeleton-sm" style="background:rgba(0,0,0,.2)"></div>
+  </div>
+  <div id="affContent" style="display:none">
+
+    <!-- Top anchor -->
+    <div class="aff-hero-line">I create exactly what I envision.</div>
+
+    <!-- Daily intention — no label -->
+    <div class="aff-intention" id="affIntention"></div>
+
+    <!-- Flame + streak -->
+    <div class="flame-section">
+      <div class="flame-wrap" id="flameWrap">
+        <div class="flame-layer flame-outer-l"></div>
+        <div class="flame-layer flame-mid-l"></div>
+        <div class="flame-layer flame-inner-l"></div>
+      </div>
+      <div class="streak-days-big" id="affStreakNum">0</div>
+      <div class="streak-days-label">day streak</div>
+      <div class="streak-msg" id="flameMsg">Come back to yourself</div>
+    </div>
+
+    <!-- Stats -->
+    <div class="aff-stats">
+      <div class="aff-stat-card">
+        <span class="aff-stat-val" id="affTotalDays">0</span>
+        <span class="aff-stat-label" id="affTotalLabel">days you chose yourself</span>
+      </div>
+      <div class="aff-stat-card">
+        <span class="aff-stat-val" id="affLongestStreak">0</span>
+        <span class="aff-stat-label" id="affLongestLabel">your longest commitment to yourself</span>
+      </div>
+    </div>
+
+    <!-- Week compare — plain warm text -->
+    <div class="aff-week-plain" id="affWeekPlain"></div>
+
+    <button class="report-btn-aff" onclick="sendAffReport()">✉ Send Weekly Report</button>
+
+    <!-- Bottom anchor -->
+    <div class="aff-bottom-line">What you believe, you become.<br>What you repeat, you reinforce.</div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// CONSTANTS — fill these in
+// ═══════════════════════════════════════════════
+const NOTION_TOKEN = "ntn_I74452960568jnNHTl192v2sXfMdxbc5m3UpVnzGlmtfAG";
+const VAPE_WINS_DB  = "af1049b0db7f4c00a4d31f8b4c9d66aa";
+const RESISTANCE_DB = "115e8195-9926-4f76-be7b-a10ff92bd89a";
+const AFFIRMATIONS_DB = "bc2efaf0-6bd7-4d01-b574-45a1f5ee226b";
+const EMAIL = "vkhakhar99@gmail.com";
+const CORS  = "https://corsproxy.io/?";
+
+// ═══════════════════════════════════════════════
+// SEED DATA
+// ═══════════════════════════════════════════════
+// format: "DD-MM-YY HH:MM AM/PM, minutes"
+const VAPE_WINS_SEED_RAW = [
+  "13-02-26 07:31 PM, 60",
+  "13-02-26 08:07 PM, 60",
+  "13-02-26 08:07 PM, 180",
+  "13-02-26 08:07 PM, 90",
+  "13-02-26 08:08 PM, 120",
+  "14-02-26 03:48 PM, 60",
+  "15-02-26 12:40 PM, 60",
+  "17-02-26 02:43 PM, 180",
+  "18-02-26 05:35 PM, 30",
+  "27-02-26 10:29 PM, 90",
+  "02-03-26 03:19 PM, 90",
+  "03-03-26 10:19 AM, 30",
+  "04-03-26 11:35 AM, 30",
+  "04-03-26 05:34 PM, 30",
+  "05-03-26 04:36 PM, 180",
+  "05-03-26 09:24 PM, 30",
+  "06-03-26 11:09 AM, 30",
+  "15-03-26 10:47 PM, 180",
+  "15-03-26 10:48 PM, 180",
+  "15-03-26 10:48 PM, 30",
+  "16-03-26 12:18 PM, 30",
+  "16-03-26 06:48 PM, 30",
+  "16-03-26 10:24 PM, 120",
+  "16-03-26 10:57 PM, 30",
+  "18-03-26 03:33 PM, 30",
+  "18-03-26 09:49 PM, 90",
+  "01-04-26 10:41 PM, 120",
+  "10-04-26 11:57 AM, 30",
+  "14-04-26 10:13 PM, 120",
+  "14-04-26 10:37 PM, 30",
+  "15-04-26 10:11 PM, 120",
+  "15-04-26 10:41 PM, 30",
+  "15-04-26 11:10 PM, 30"
+];
+
+// format: "DD/MM/YY H:MM AM/PM"
+const AFFIRMATIONS_SEED_RAW = [
+  "14/01/26 5:44 PM",
+  "20/01/26 1:54 AM",
+  "20/01/26 10:58 PM",
+  "21/01/26 10:53 PM",
+  "23/01/26 11:18 PM",
+  "24/01/26 4:36 PM",
+  "26/01/26 12:17 PM",
+  "28/01/26 12:10 AM",
+  "03/02/26 1:35 AM",
+  "06/02/26 2:31 AM",
+  "14/02/26 1:54 AM",
+  "14/02/26 3:59 PM",
+  "15/02/26 10:53 PM",
+  "17/02/26 1:12 AM",
+  "19/02/26 3:03 AM",
+  "21/02/26 1:07 AM",
+  "24/02/26 1:43 AM",
+  "25/02/26 12:26 AM",
+  "26/02/26 7:41 PM",
+  "27/02/26 12:17 AM",
+  "01/03/26 12:59 AM",
+  "02/03/26 11:50 PM",
+  "05/03/26 1:01 AM",
+  "08/03/26 11:40 AM",
+  "09/03/26 7:03 PM",
+  "10/03/26 1:50 PM",
+  "11/03/26 1:03 PM",
+  "12/03/26 1:40 PM",
+  "14/03/26 10:10 PM",
+  "15/03/26 11:31 PM",
+  "17/03/26 1:10 AM",
+  "19/03/26 9:09 PM",
+  "21/03/26 10:42 PM",
+  "27/03/26 1:25 PM",
+  "05/04/26 8:03 PM",
+  "08/04/26 11:39 PM",
+  "10/04/26 1:10 AM",
+  "11/04/26 1:56 AM",
+  "15/04/26 1:46 PM"
+];
+
+// ═══════════════════════════════════════════════
+// LEVELS — purely consistency-based, no XP
+// dailyGoal = minutes/day required to qualify for this level
+// locked    = true → "coming soon" treatment
+// ═══════════════════════════════════════════════
+const LEVELS = [
+  { name:'Diva',       dailyGoal:240 },
+  { name:'Starlet',    dailyGoal:270 },
+  { name:'Popstar',    dailyGoal:300 },
+  { name:'Headliner',  dailyGoal:330 },
+  { name:'Superstar',  dailyGoal:360 },
+  { name:'Legend',     dailyGoal:390 },
+  { name:'Icon',       dailyGoal:420 },
+  { name:'Sensation',  dailyGoal:450 },
+  { name:'Phenomenon', dailyGoal:480 },
+  { name:'Mother',     dailyGoal:600, locked:true }
+];
+
+// hrs thresholds only — no labels, emoji only shown in UI
+const MILESTONES = [
+  { hrs:10,   icon:'🌱' },
+  { hrs:25,   icon:'⚡' },
+  { hrs:50,   icon:'🔥' },
+  { hrs:100,  icon:'💫' },
+  { hrs:150,  icon:'🌊' },
+  { hrs:200,  icon:'🦋' },
+  { hrs:250,  icon:'🌙' },
+  { hrs:300,  icon:'⭐' },
+  { hrs:400,  icon:'🏆' },
+  { hrs:500,  icon:'💎' },
+  { hrs:600,  icon:'🌸' },
+  { hrs:750,  icon:'🦅' },
+  { hrs:900,  icon:'🔮' },
+  { hrs:1000, icon:'👑' }
+];
+
+const CHALLENGE_START = '2026-04-19';
+const CHALLENGE_WEEK_TARGETS = ['Diva','Starlet','Popstar','Headliner','Superstar','Legend','Icon–Sensation','Phenomenon'];
+const CHALLENGE_WEEK_MSGS = [
+  "Building the foundation. You've got this.",
+  "Medication starts. The game changes now.",
+  "Halfway to Headliner. Keep spacing.",
+  "Half your day is yours now.",
+  "More than half vape free. Feel that.",
+  "Legend territory. This is real.",
+  "Almost there. Don't stop now.",
+  "Final week. Phenomenon awaits."
+];
+
+const MISSED_QUOTES = [
+  "You are what you love",
+  "This is me trying",
+  "Long story short, I survived",
+  "Step into the daylight and let it go",
+  "She lost him but she found herself and somehow that was everything",
+  "I had the time of my life fighting dragons with you"
+];
+
+const VAPE_REMINDERS = [
+  "Your hair, your skin, your health. That's why.",
+  "Your body is fighting for you. Fight back.",
+  "Breathe better. That's the whole goal.",
+  "Slay, diva. You're literally doing it.",
+  "You've come so far. Don't waste it.",
+  "Your lungs are healing right now. Let them.",
+  "You're not stopping. You're becoming.",
+  "Look how far you've come. Keep going.",
+  "Your body deserves to last. Give it a chance.",
+  "You're doing great. There's just a little more to go.",
+  "You're doing great, sweetie."
+];
+
+const DAILY_INTENTIONS = [
+  "You build what you believe.",
+  "The vision is real. You just have to catch up to it.",
+  "Everything you've said is already true somewhere.",
+  "You don't chase. You attract.",
+  "The version of you that has it all is already in the room.",
+  "You create. That's not what you do, it's who you are.",
+  "Half-truth today. Full truth tomorrow. Keep saying it.",
+  "Your brain is listening. Keep talking to it.",
+  "The dream isn't out there. It's in here. Say it again.",
+  "Confidence isn't given. It's repeated into existence.",
+  "You've already decided. Now just show up for it.",
+  "What you believe, you build. What you repeat, you become."
+];
+
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+let vapeState = null;
+let affState  = null;
+
+// ═══════════════════════════════════════════════
+// DATE HELPERS (IST = UTC+5:30)
+// ═══════════════════════════════════════════════
+function toISTDateStr(date) {
+  const ist = new Date(date.getTime() + 19800000);
+  return ist.toISOString().slice(0, 10);
+}
+function getISTToday() { return toISTDateStr(new Date()); }
+
+function subtractDay(ymd) {
+  const [y,m,d] = ymd.split('-').map(Number);
+  const dt = new Date(Date.UTC(y,m-1,d));
+  dt.setUTCDate(dt.getUTCDate()-1);
+  return dt.toISOString().slice(0,10);
+}
+function addDay(ymd) {
+  const [y,m,d] = ymd.split('-').map(Number);
+  const dt = new Date(Date.UTC(y,m-1,d));
+  dt.setUTCDate(dt.getUTCDate()+1);
+  return dt.toISOString().slice(0,10);
+}
+function fmtMins(m) {
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m/60), rem = m%60;
+  return rem > 0 ? `${h}h ${rem}m` : `${h}h`;
+}
+function fmtDate(ymd) {
+  const [y,m,d] = ymd.split('-');
+  const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${parseInt(d)} ${months[parseInt(m)-1]} ${y}`;
+}
+function getWeekBounds() {
+  const todayStr = getISTToday();
+  const [y,m,d] = todayStr.split('-').map(Number);
+  const today = new Date(Date.UTC(y,m-1,d));
+  const dow = today.getUTCDay();
+  const daysFromMon = (dow===0)?6:dow-1;
+  const thisMonday = new Date(today); thisMonday.setUTCDate(today.getUTCDate()-daysFromMon);
+  const lastMonday = new Date(thisMonday); lastMonday.setUTCDate(thisMonday.getUTCDate()-7);
+  const lastSunday = new Date(thisMonday); lastSunday.setUTCDate(thisMonday.getUTCDate()-1);
+  return {
+    thisStart: thisMonday.toISOString().slice(0,10),
+    lastStart: lastMonday.toISOString().slice(0,10),
+    lastEnd:   lastSunday.toISOString().slice(0,10)
+  };
+}
+
+// ═══════════════════════════════════════════════
+// SEED PARSING
+// ═══════════════════════════════════════════════
+function parseSeedVapeWins() {
+  return VAPE_WINS_SEED_RAW.map(str => {
+    // "13-02-26 07:31 PM, 60"
+    const m = str.match(/^(\d{2})-(\d{2})-(\d{2})\s+(\d+):(\d+)\s+(AM|PM),\s*(\d+)$/);
+    if (!m) return null;
+    const [,dd,mm,yy,hh,mi,ampm,mins] = m;
+    const year = 2000+parseInt(yy);
+    const dateStr = `${year}-${mm}-${dd}`;
+    let hour = parseInt(hh);
+    if (ampm === 'PM' && hour !== 12) hour += 12;
+    if (ampm === 'AM' && hour === 12) hour = 0;
+    // Treat seed times as IST, convert to UTC ms
+    const ts = Date.UTC(year, parseInt(mm)-1, parseInt(dd), hour, parseInt(mi)) - 19800000;
+    return { dateStr, minutes: parseInt(mins), ts };
+  }).filter(Boolean);
+}
+
+function parseSeedAffirmations() {
+  return AFFIRMATIONS_SEED_RAW.map(str => {
+    // "14/01/26 5:44 PM"
+    const m = str.match(/^(\d{2})\/(\d{2})\/(\d{2})\s+/);
+    if (!m) return null;
+    const [,dd,mm,yy] = m;
+    const year = 2000+parseInt(yy);
+    return { dateStr:`${year}-${mm}-${dd}` };
+  }).filter(Boolean);
+}
+
+// ═══════════════════════════════════════════════
+// NOTION API
+// ═══════════════════════════════════════════════
+async function fetchAllNotionPages(dbId) {
+  const notionUrl = `https://api.notion.com/v1/databases/${dbId}/query`;
+  const url = CORS + encodeURIComponent(notionUrl);
+  const headers = {
+    'Authorization': `Bearer ${NOTION_TOKEN}`,
+    'Notion-Version': '2022-06-28',
+    'Content-Type': 'application/json'
+  };
+  let results = [], hasMore = true, cursor = undefined;
+  while (hasMore) {
+    const body = cursor ? { start_cursor: cursor } : {};
+    const resp = await fetch(url, { method:'POST', headers, body: JSON.stringify(body) });
+    if (!resp.ok) {
+      const errText = await resp.text().catch(()=>'');
+      throw new Error(`Notion ${resp.status}: ${errText.slice(0,200)}`);
+    }
+    const data = await resp.json();
+    if (data.object === 'error') throw new Error(`Notion: ${data.message}`);
+    results = results.concat(data.results || []);
+    hasMore = data.has_more;
+    cursor = data.next_cursor;
+  }
+  return results;
+}
+
+function getPageTitle(page) {
+  const props = page.properties || {};
+  for (const key of Object.keys(props)) {
+    if (props[key]?.type === 'title') {
+      return (props[key].title || [])[0]?.plain_text || '';
+    }
+  }
+  return '';
+}
+
+function parseNotionVapeWins(pages) {
+  return pages.map(p => {
+    const title = getPageTitle(p);
+    const m = title.match(/(\d+)\s*min/i);
+    if (!m) return null;
+    const dateStr = toISTDateStr(new Date(p.created_time));
+    const ts = new Date(p.created_time).getTime();
+    return { dateStr, minutes: parseInt(m[1]), ts };
+  }).filter(Boolean);
+}
+
+function parseNotionResistances(pages) {
+  return pages.map(p => ({ dateStr: toISTDateStr(new Date(p.created_time)) }));
+}
+
+function parseNotionAffirmations(pages) {
+  return pages.map(p => ({ dateStr: toISTDateStr(new Date(p.created_time)) }));
+}
+
+// ═══════════════════════════════════════════════
+// CALC: level stats — rolling 10-day window system
+// Level UP:  7 qualifying days in any rolling 10-day window
+// Level DOWN: 5 consecutive missed past days → drop one level
+// ═══════════════════════════════════════════════
+function computeLevelStats(vapeWins) {
+  // Build per-day minutes map
+  const dayMap = {};
+  for (const w of vapeWins) {
+    if (!dayMap[w.dateStr]) dayMap[w.dateStr] = { mins: 0 };
+    dayMap[w.dateStr].mins += w.minutes;
+  }
+
+  const today = getISTToday();
+  const allDates = Object.keys(dayMap).sort();
+
+  // Build last-10 helper using a given lvIdx
+  function buildLast10(idx) {
+    const goal = LEVELS[idx].dailyGoal;
+    const arr = [];
+    for (let i = 9; i >= 0; i--) {
+      let d = today;
+      for (let j = 0; j < i; j++) d = subtractDay(d);
+      const mins = dayMap[d]?.mins || 0;
+      arr.push({ dateStr: d, mins, hit: mins >= goal, isToday: d === today });
+    }
+    return arr;
+  }
+
+  if (!allDates.length) {
+    const last10 = buildLast10(0);
+    return { lvIdx:0, consecutiveMisses:0, last10, qualifyingInWindow:0, longestQualStreak:0, dayMap };
+  }
+
+  let lvIdx = 0;
+  let longestQualStreak = 0;
+  let currentQualStreak = 0;
+  let consecutiveMisses = 0;
+
+  // Build ordered list of all calendar days from first entry to today
+  const allDaysInRange = [];
+  let cur = allDates[0];
+  while (cur <= today) {
+    allDaysInRange.push(cur);
+    cur = addDay(cur);
+  }
+
+  for (let i = 0; i < allDaysInRange.length; i++) {
+    const dateStr = allDaysInRange[i];
+    const isPast  = dateStr < today;
+    const lv      = LEVELS[lvIdx];
+    const dayMins = dayMap[dateStr]?.mins || 0;
+    const hit     = dayMins >= lv.dailyGoal;
+
+    // Update qualifying streak (don't break streak on today — still in progress)
+    if (hit) {
+      currentQualStreak++;
+      longestQualStreak = Math.max(longestQualStreak, currentQualStreak);
+    } else if (isPast) {
+      currentQualStreak = 0;
+    }
+
+    // Level DROP: only triggered by ZERO-session past days (not just below-goal)
+    const hasAnySessions = dayMins > 0;
+    if (isPast) {
+      if (!hasAnySessions) {
+        consecutiveMisses++;
+        if (consecutiveMisses >= 5 && lvIdx > 0) {
+          lvIdx--;
+          consecutiveMisses = 0;
+        }
+      } else {
+        consecutiveMisses = 0;
+      }
+    }
+
+    // Level UP: count qualifying hits in rolling 10-day window ending on this day
+    if (lvIdx < LEVELS.length - 1) {
+      const winStart = Math.max(0, i - 9);
+      const window10 = allDaysInRange.slice(winStart, i + 1);
+      const goal = LEVELS[lvIdx].dailyGoal;
+      const hitsInWindow = window10.filter(d => (dayMap[d]?.mins || 0) >= goal).length;
+      if (hitsInWindow >= 7) {
+        lvIdx++;
+        consecutiveMisses = 0;
+      }
+    }
+  }
+
+  const last10 = buildLast10(lvIdx);
+  const qualifyingInWindow = last10.filter(d => d.hit).length;
+
+  return { lvIdx, consecutiveMisses, last10, qualifyingInWindow, longestQualStreak, dayMap };
+}
+
+// ═══════════════════════════════════════════════
+// CALC: STREAKS
+// ═══════════════════════════════════════════════
+function calcCurrentStreak(datestrs) {
+  if (!datestrs.length) return 0;
+  const set = new Set(datestrs);
+  const today = getISTToday();
+  let cursor = today;
+  if (!set.has(cursor)) {
+    cursor = subtractDay(cursor);
+    if (!set.has(cursor)) return 0;
+  }
+  let n = 0;
+  while (set.has(cursor)) { n++; cursor = subtractDay(cursor); }
+  return n;
+}
+
+function calcLongestStreak(datestrs) {
+  if (!datestrs.length) return 0;
+  const sorted = [...new Set(datestrs)].sort();
+  let max = 1, cur = 1;
+  for (let i=1; i<sorted.length; i++) {
+    if (addDay(sorted[i-1]) === sorted[i]) { cur++; max=Math.max(max,cur); }
+    else cur = 1;
+  }
+  return max;
+}
+
+// ═══════════════════════════════════════════════
+// CALC: WEEK COMPARISON
+// ═══════════════════════════════════════════════
+function weekMins(vapeWins, start, end) {
+  return vapeWins.filter(w => w.dateStr >= start && w.dateStr <= end)
+    .reduce((s,w) => s+w.minutes, 0);
+}
+function weekCount(items, start, end) {
+  return items.filter(i => i.dateStr >= start && i.dateStr <= end).length;
+}
+function weekUniqueDays(items, start, end) {
+  return new Set(items.filter(i => i.dateStr >= start && i.dateStr <= end).map(i=>i.dateStr)).size;
+}
+
+function updateLastSession(endTs, sessionMins) {
+  const el = document.getElementById('lastSessionTime');
+  const sub = document.getElementById('lastSessionSub');
+  if (!endTs) { el.textContent = 'No sessions yet'; sub.textContent = '—'; return; }
+  const diffMs = Date.now() - endTs;
+  const diffMins = Math.floor(diffMs / 60000);
+  const h = Math.floor(diffMins / 60), m = diffMins % 60;
+  let agoStr;
+  if (diffMins < 1) { agoStr = 'just now'; }
+  else if (h === 0) { agoStr = `${m}m ago`; }
+  else { agoStr = `${h}h ${m}m ago`; }
+  el.textContent = `Last session ended ${agoStr}`;
+  const dateStr = toISTDateStr(new Date(endTs));
+  const datePart = dateStr === getISTToday() ? 'today' : fmtDate(dateStr);
+  sub.textContent = `${fmtMins(sessionMins)} session · ${datePart}`;
+}
+
+function pctChange(cur, prev) {
+  if (prev === 0 && cur === 0) return { pct: 0, dir:'neutral' };
+  if (prev === 0) return { pct: 100, dir:'up' };
+  const p = Math.round(((cur-prev)/prev)*100);
+  return { pct: Math.abs(p), dir: p>=0?'up':'down' };
+}
+
+// ═══════════════════════════════════════════════
+// PROCESS VAPE DATA
+// ═══════════════════════════════════════════════
+function processVapeData(vapeWins, resistances) {
+  const today = getISTToday();
+
+  // Rolling window level simulation
+  const { lvIdx, consecutiveMisses, last10, qualifyingInWindow, longestQualStreak, dayMap } =
+    computeLevelStats(vapeWins);
+  const lv = LEVELS[lvIdx];
+
+  // Lifetime hours
+  const totalMins = vapeWins.reduce((s, w) => s + w.minutes, 0);
+  const lifetimeHrs = Math.floor(totalMins / 60);
+
+  // Milestone badges — single highest earned
+  const earnedBadges = MILESTONES.filter(m => lifetimeHrs >= m.hrs);
+  const topBadge = earnedBadges.length > 0 ? earnedBadges[earnedBadges.length - 1] : null;
+  const nextMilestone = MILESTONES.find(m => lifetimeHrs < m.hrs) || null;
+  const hrsToNextMilestone = nextMilestone ? nextMilestone.hrs - lifetimeHrs : 0;
+
+  // Today's data
+  const todayWins   = vapeWins.filter(w => w.dateStr === today);
+  const todayMins   = todayWins.reduce((s, w) => s + w.minutes, 0);
+  const todayResist = resistances.filter(r => r.dateStr === today).length;
+
+  // Best day
+  let bestDate = '', bestMins = 0;
+  for (const [d, day] of Object.entries(dayMap)) {
+    if (day.mins > bestMins) { bestMins = day.mins; bestDate = d; }
+  }
+
+  // Week compare
+  const wb = getWeekBounds();
+  const thisWkMins   = weekMins(vapeWins, wb.thisStart, today);
+  const lastWkMins   = weekMins(vapeWins, wb.lastStart, wb.lastEnd);
+  const thisWkResist = weekCount(resistances, wb.thisStart, today);
+  const lastWkResist = weekCount(resistances, wb.lastStart, wb.lastEnd);
+
+  // Latest session end time (start ts + duration ms)
+  let latestEndTs = 0, latestSessionMins = 0;
+  for (const w of vapeWins) {
+    if (!w.ts) continue;
+    const endTs = w.ts + w.minutes * 60000;
+    if (endTs > latestEndTs) { latestEndTs = endTs; latestSessionMins = w.minutes; }
+  }
+
+  return {
+    lv, lvIdx, consecutiveMisses, last10, qualifyingInWindow, longestQualStreak,
+    lifetimeHrs, totalMins, topBadge, nextMilestone, hrsToNextMilestone,
+    todaySessions: todayWins.length, todayMins, todayResist,
+    bestDate, bestMins,
+    totalResist: resistances.length,
+    totalSessions: vapeWins.length,
+    thisWkMins, lastWkMins, thisWkResist, lastWkResist,
+    latestEndTs, latestSessionMins
+  };
+}
+
+// ═══════════════════════════════════════════════
+// PROCESS AFFIRMATIONS DATA
+// ═══════════════════════════════════════════════
+function processAffirmations(affirmations) {
+  const uniqueDays = [...new Set(affirmations.map(a=>a.dateStr))];
+  const curStreak = calcCurrentStreak(uniqueDays);
+  const lonStreak = calcLongestStreak(uniqueDays);
+  const totalDays = uniqueDays.length;
+
+  const wb = getWeekBounds();
+  const today = getISTToday();
+  const thisWk = weekUniqueDays(affirmations, wb.thisStart, today);
+  const lastWk = weekUniqueDays(affirmations, wb.lastStart, wb.lastEnd);
+
+  // Missed day check
+  const sorted = [...uniqueDays].sort();
+  const lastDay = sorted[sorted.length-1] || '';
+  const missed = lastDay !== today && lastDay !== subtractDay(today);
+
+  return { curStreak, lonStreak, totalDays, thisWk, lastWk, lastDay, missed, uniqueDays };
+}
+
+// ═══════════════════════════════════════════════
+// RENDER: VAPE
+// ═══════════════════════════════════════════════
+function renderVape(d) {
+  // ── Daily reminder (rotates by IST day of year) ──
+  const todayIST = getISTToday();
+  const [ry, rm, rd] = todayIST.split('-').map(Number);
+  const startOfYearMs = Date.UTC(ry, 0, 1);
+  const dayOfYear = Math.floor((Date.UTC(ry, rm-1, rd) - startOfYearMs) / 86400000);
+  document.getElementById('vapeReminder').textContent =
+    VAPE_REMINDERS[dayOfYear % VAPE_REMINDERS.length];
+
+  // ── Identity card ──
+  const isLocked = !!d.lv.locked;
+  document.getElementById('identityCard').classList.toggle('level-locked', isLocked);
+  document.getElementById('levelBadge').textContent = isLocked ? '???' : ('LVL ' + (d.lvIdx + 1));
+  document.getElementById('levelTitle').textContent = isLocked ? '???' : d.lv.name;
+  document.getElementById('motherComing').style.display = isLocked ? 'block' : 'none';
+
+  // Hours reclaimed hero
+  document.getElementById('lifetimeHours').textContent = d.lifetimeHrs;
+
+  // Single latest badge emoji
+  const singleBadge = document.getElementById('singleBadge');
+  singleBadge.textContent = d.topBadge ? d.topBadge.icon : '';
+
+  // Next milestone
+  const nmEl = document.getElementById('nextMilestoneText');
+  if (d.nextMilestone) {
+    nmEl.innerHTML = `Next: ${d.nextMilestone.icon} at <strong>${d.nextMilestone.hrs}h</strong> &nbsp;·&nbsp; <strong>${d.hrsToNextMilestone}h</strong> to go`;
+  } else {
+    nmEl.innerHTML = `<strong style="color:var(--teal)">All milestones unlocked 👑</strong>`;
+  }
+
+  // ── 8 Week Challenge ──
+  const [csy, csm, csd] = CHALLENGE_START.split('-').map(Number);
+  const [tdy, tdm, tdd] = todayIST.split('-').map(Number);
+  const challengeStartMs = Date.UTC(csy, csm-1, csd);
+  const todayMs = Date.UTC(tdy, tdm-1, tdd);
+  const daysSinceStart = Math.floor((todayMs - challengeStartMs) / 86400000);
+  const TOTAL_CHALLENGE_DAYS = 56;
+  const weekNum = daysSinceStart < 0 ? 0 : Math.min(Math.floor(daysSinceStart / 7) + 1, 8);
+  const weeksComplete = daysSinceStart < 0 ? 0 : Math.min(Math.floor(daysSinceStart / 7), 8);
+  const daysLeft = Math.max(0, TOTAL_CHALLENGE_DAYS - daysSinceStart - 1);
+  const challengeDone = daysSinceStart >= TOTAL_CHALLENGE_DAYS;
+  const pct = Math.max(0, Math.min(100, (daysSinceStart / TOTAL_CHALLENGE_DAYS) * 100));
+  document.getElementById('challengeBarFill').style.width = pct + '%';
+  // Tick marks for 8 weeks
+  document.getElementById('challengeTicks').innerHTML =
+    Array.from({length:8}, (_,i) =>
+      `<span class="challenge-tick${i < weeksComplete ? ' done' : ''}">W${i+1}</span>`
+    ).join('');
+  if (daysSinceStart < 0) {
+    document.getElementById('challengeWeek').textContent = 'Challenge starts 19 Apr 2026';
+    document.getElementById('challengeMeta').textContent = '';
+    document.getElementById('challengeMsg').textContent = '';
+  } else if (challengeDone) {
+    document.getElementById('challengeWeek').innerHTML = `<span style="color:var(--teal)">✓ All 8 Weeks Complete</span>`;
+    document.getElementById('challengeMeta').textContent = `Current level: ${d.lv.name}`;
+    document.getElementById('challengeMsg').textContent = 'You did it. Now go further.';
+  } else {
+    document.getElementById('challengeWeek').innerHTML =
+      `Week <strong>${weekNum}</strong> of 8 &nbsp;·&nbsp; Target: <strong>${CHALLENGE_WEEK_TARGETS[weekNum-1]}</strong>`;
+    document.getElementById('challengeMeta').textContent =
+      `${daysLeft} day${daysLeft !== 1 ? 's' : ''} remaining · Current: ${d.lv.name}`;
+    document.getElementById('challengeMsg').textContent = CHALLENGE_WEEK_MSGS[weekNum-1];
+  }
+
+  // ── Daily remaining banner ──
+  const dailyGoal = d.lv.dailyGoal;
+  const banner = document.getElementById('dailyBanner');
+  const hitGoal = d.todayMins >= dailyGoal;
+  if (hitGoal) {
+    banner.textContent = 'Daily goal complete 🏆 Everything else is a bonus';
+    banner.className = 'daily-banner goal-hit';
+  } else {
+    const remaining = dailyGoal - d.todayMins;
+    banner.innerHTML = `${fmtMins(d.todayMins)} logged today &nbsp;·&nbsp; <strong>${fmtMins(remaining)} remaining</strong> to hit your <strong>${d.lv.name}</strong> goal &nbsp;·&nbsp; Space your sessions`;
+    banner.className = 'daily-banner';
+  }
+
+  // ── Today recap ──
+  document.getElementById('todaySessions').textContent = d.todaySessions;
+  document.getElementById('todayMins').textContent     = fmtMins(d.todayMins);
+  document.getElementById('todayResist').textContent   = d.todayResist;
+
+  // Ring — uses current level's dailyGoal
+  const circ = 99.9;
+  const prog = Math.min(d.todayMins / dailyGoal, 1);
+  const ring = document.getElementById('ringFill');
+  setTimeout(() => { ring.style.strokeDashoffset = circ * (1 - prog); }, 100);
+  document.getElementById('ringLabel').textContent = `${fmtMins(d.todayMins)} / ${fmtMins(dailyGoal)}`;
+  ring.classList.toggle('complete', hitGoal);
+  document.getElementById('goalComplete').style.display = hitGoal ? 'block' : 'none';
+
+  // ── 10-day consistency strip ──
+  const container = document.getElementById('consistencyDays');
+  container.innerHTML = d.last10.map(day => {
+    const dayNum = parseInt(day.dateStr.split('-')[2]);
+    const cls = day.hit ? 'hit' : (day.isToday ? 'today-dot' : 'miss');
+    const icon = day.hit ? '★' : (day.isToday ? '·' : '');
+    return `<div class="day-dot ${cls}"><div class="day-dot-inner">${icon}</div><div class="day-dot-lbl">${dayNum}</div></div>`;
+  }).join('');
+
+  document.getElementById('consistencyCount').textContent = `${d.qualifyingInWindow}/7 qualifying`;
+
+  const nextLvName = d.lvIdx < LEVELS.length - 1 ? LEVELS[d.lvIdx + 1].name : null;
+  const needed = Math.max(0, 7 - d.qualifyingInWindow);
+  const footerEl = document.getElementById('consistencyFooter');
+  if (isLocked) {
+    footerEl.innerHTML = `<strong>You've reached the top — Mother status!</strong>`;
+  } else if (needed === 0) {
+    footerEl.innerHTML = `<strong>Level-up threshold met!</strong> 7/10 qualifying days ✓`;
+  } else {
+    let txt = `${needed} more qualifying day${needed !== 1 ? 's' : ''} in this window → <strong>${nextLvName}</strong>`;
+    if (d.lvIdx > 0 && d.consecutiveMisses >= 3) {
+      const missesLeft = Math.max(0, 5 - d.consecutiveMisses);
+      if (missesLeft > 0) {
+        txt += ` &nbsp;·&nbsp; <span style="color:#ef4444">${missesLeft} zero-session day${missesLeft !== 1 ? 's' : ''} → level drop</span>`;
+      }
+    }
+    footerEl.innerHTML = txt;
+  }
+
+  // ── Last session block (end-time based) ──
+  updateLastSession(d.latestEndTs, d.latestSessionMins);
+  if (window._lastSessionTimer) clearInterval(window._lastSessionTimer);
+  if (d.latestEndTs) {
+    window._lastSessionTimer = setInterval(
+      () => updateLastSession(d.latestEndTs, d.latestSessionMins), 60000
+    );
+  }
+
+  // ── Records ──
+  document.getElementById('recLongestQual').textContent = d.longestQualStreak;
+  document.getElementById('bestDayMins').textContent    = fmtMins(d.bestMins);
+  document.getElementById('bestDayDate').textContent    = d.bestDate ? fmtDate(d.bestDate) : '—';
+  document.getElementById('totalResist').textContent    = d.totalResist;
+  document.getElementById('totalSessions').textContent  = d.totalSessions;
+
+  // Week compare
+  const mc = pctChange(d.thisWkMins, d.lastWkMins);
+  const rc = pctChange(d.thisWkResist, d.lastWkResist);
+  const wmc = document.getElementById('weekMinsChange');
+  wmc.textContent = (mc.dir==='up' ? '↑' : '↓') + mc.pct + '%';
+  wmc.className = 'week-change ' + mc.dir;
+  document.getElementById('weekMinsSub').textContent = `${fmtMins(d.thisWkMins)} vs ${fmtMins(d.lastWkMins)}`;
+  const wrc = document.getElementById('weekResistChange');
+  wrc.textContent = (rc.dir==='up' ? '↑' : '↓') + rc.pct + '%';
+  wrc.className = 'week-change ' + rc.dir;
+  document.getElementById('weekResistSub').textContent = `${d.thisWkResist} vs ${d.lastWkResist}`;
+}
+
+// ═══════════════════════════════════════════════
+// RENDER: AFFIRMATIONS
+// ═══════════════════════════════════════════════
+function renderAff(d) {
+  // Daily intention — rotates by IST day of year
+  const todayIST = getISTToday();
+  const [iy, im, id2] = todayIST.split('-').map(Number);
+  const startOfYear = new Date(Date.UTC(iy, 0, 1));
+  const dayOfYear = Math.floor((Date.UTC(iy, im-1, id2) - startOfYear.getTime()) / 86400000);
+  document.getElementById('affIntention').textContent =
+    DAILY_INTENTIONS[dayOfYear % DAILY_INTENTIONS.length];
+
+  // Streak number
+  document.getElementById('affStreakNum').textContent = d.curStreak;
+
+  // Stats
+  document.getElementById('affTotalDays').textContent   = d.totalDays;
+  document.getElementById('affTotalLabel').textContent  = `day${d.totalDays !== 1 ? 's' : ''} you chose yourself`;
+  document.getElementById('affLongestStreak').textContent = d.lonStreak;
+  document.getElementById('affLongestLabel').textContent  =
+    `your longest commitment to yourself${d.lonStreak > 0 ? ' — ' + d.lonStreak + ' day' + (d.lonStreak !== 1 ? 's' : '') : ''}`;
+
+  // Week compare — warm plain text
+  const wp = document.getElementById('affWeekPlain');
+  if (d.thisWk === 0 && d.lastWk === 0) {
+    wp.innerHTML = `No affirmations logged yet this fortnight.`;
+  } else {
+    wp.innerHTML = `<span>${d.thisWk}</span> day${d.thisWk !== 1 ? 's' : ''} this week &nbsp;·&nbsp; <span>${d.lastWk}</span> day${d.lastWk !== 1 ? 's' : ''} last week`;
+  }
+
+  // Flame state
+  const flame = document.getElementById('flameWrap');
+  const msg   = document.getElementById('flameMsg');
+  flame.className = 'flame-wrap';
+
+  if (d.missed) {
+    const istDate = new Date(getISTToday().replace(/-/g, '/'));
+    const idx = istDate.getDay() % MISSED_QUOTES.length;
+    msg.textContent = '\u201c' + MISSED_QUOTES[idx] + '\u201d';
+    flame.classList.add(d.curStreak === 0 ? 'dim' : 'small');
+  } else if (d.curStreak === 0) {
+    flame.classList.add('dim');
+    msg.textContent = 'Come back to yourself';
+  } else if (d.curStreak <= 3) {
+    flame.classList.add('small');
+    msg.textContent = 'You\u2019re remembering';
+  } else if (d.curStreak <= 7) {
+    flame.classList.add('medium');
+    msg.textContent = 'The programming is working';
+  } else if (d.curStreak <= 14) {
+    flame.classList.add('large');
+    msg.textContent = 'Your brain is rewiring';
+  } else if (d.curStreak <= 30) {
+    flame.classList.add('blazing');
+    msg.textContent = 'This is becoming who you are';
+  } else {
+    flame.classList.add('golden');
+    msg.textContent = 'You are already this person';
+  }
+}
+
+// ═══════════════════════════════════════════════
+// LOAD DATA
+// ═══════════════════════════════════════════════
+async function safeFetch(dbId, parser, cacheKey) {
+  try {
+    const pages = await fetchAllNotionPages(dbId);
+    const data = parser(pages);
+    localStorage.setItem(cacheKey, JSON.stringify(data));
+    return { data, error: null };
+  } catch (e) {
+    const cached = localStorage.getItem(cacheKey);
+    return { data: cached ? JSON.parse(cached) : [], error: e.message };
+  }
+}
+
+async function loadVapeData(manual = false) {
+  const btn = document.getElementById('vapeRefreshBtn');
+  const errEl = document.getElementById('vapeError');
+  const skeleton = document.getElementById('vapeSkeletons');
+  const content = document.getElementById('vapeContent');
+
+  if (manual) btn.classList.add('spinning');
+  errEl.classList.remove('show');
+  if (!manual) { skeleton.style.display=''; content.style.display='none'; }
+
+  const [vapeResult, resistResult] = await Promise.all([
+    safeFetch(VAPE_WINS_DB,   parseNotionVapeWins,    'habit_vape_wins'),
+    safeFetch(RESISTANCE_DB,  parseNotionResistances, 'habit_resistances')
+  ]);
+
+  const errors = [
+    vapeResult.error   && `Vape Wins: ${vapeResult.error}`,
+    resistResult.error && `Resistance: ${resistResult.error}`
+  ].filter(Boolean);
+
+  if (errors.length) {
+    errEl.textContent = '⚠ ' + errors.join(' | ');
+    errEl.classList.add('show');
+  }
+
+  const allVape   = [...parseSeedVapeWins(), ...vapeResult.data];
+  const allResist = [...resistResult.data];
+
+  const d = processVapeData(allVape, allResist);
+  vapeState = { d, allVape, allResist };
+  renderVape(d);
+
+  skeleton.style.display = 'none';
+  content.style.display = 'block';
+  btn.classList.remove('spinning');
+}
+
+async function loadAffirmationsData(manual = false) {
+  const btn = document.getElementById('affRefreshBtn');
+  const errEl = document.getElementById('affError');
+  const skeleton = document.getElementById('affSkeletons');
+  const content = document.getElementById('affContent');
+
+  if (manual) btn.classList.add('spinning');
+  errEl.classList.remove('show');
+  if (!manual) { skeleton.style.display=''; content.style.display='none'; }
+
+  let notionAff = [];
+  try {
+    notionAff = await fetchAllNotionPages(AFFIRMATIONS_DB).then(parseNotionAffirmations);
+    localStorage.setItem('habit_affirmations', JSON.stringify(notionAff));
+  } catch (e) {
+    const cached = localStorage.getItem('habit_affirmations');
+    if (cached) {
+      notionAff = JSON.parse(cached);
+      errEl.textContent = `⚠ Notion error: ${e.message}. Showing cached data.`;
+      errEl.classList.add('show');
+    } else {
+      errEl.textContent = `⚠ Notion error: ${e.message}`;
+      errEl.classList.add('show');
+    }
+  }
+
+  const seedAff = parseSeedAffirmations();
+  const allAff = [...seedAff, ...notionAff];
+
+  const d = processAffirmations(allAff);
+  affState = d;
+  renderAff(d);
+
+  skeleton.style.display = 'none';
+  content.style.display = 'block';
+  btn.classList.remove('spinning');
+}
+
+// ═══════════════════════════════════════════════
+// EMAIL REPORTS
+// ═══════════════════════════════════════════════
+function sendVapeReport() {
+  if (!vapeState) return;
+  const d = vapeState.d;
+  const subject = encodeURIComponent(`Vape Free Weekly Report — ${getISTToday()}`);
+  const body = encodeURIComponent(
+`VAPE FREE WEEKLY REPORT — ${getISTToday()}
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+LEVEL: ${d.lv.name}
+Lifetime Vape-Free Hours: ${d.lifetimeHrs}h
+10-Day Window: ${d.qualifyingInWindow}/10 qualifying days
+
+RECORDS
+  Best day ever:          ${fmtMins(d.bestMins)} (${d.bestDate ? fmtDate(d.bestDate) : '—'})
+  Total resistances:      ${d.totalResist}
+  Longest qualifying streak: ${d.longestQualStreak} days
+
+TODAY
+  Sessions:    ${d.todaySessions}
+  Minutes:     ${fmtMins(d.todayMins)}
+  Resistances: ${d.todayResist}
+
+THIS WEEK VS LAST WEEK
+  Minutes:     ${fmtMins(d.thisWkMins)} vs ${fmtMins(d.lastWkMins)}
+  Resistances: ${d.thisWkResist} vs ${d.lastWkResist}
+`);
+  window.location.href = `mailto:${EMAIL}?subject=${subject}&body=${body}`;
+}
+
+function sendAffReport() {
+  if (!affState) return;
+  const d = affState;
+  const subject = encodeURIComponent(`Affirmations Weekly Report — ${getISTToday()}`);
+  const body = encodeURIComponent(
+`AFFIRMATIONS WEEKLY REPORT — ${getISTToday()}
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+Current streak:  ${d.curStreak} days
+Longest streak:  ${d.lonStreak} days
+Total days:      ${d.totalDays}
+
+THIS WEEK VS LAST WEEK
+  This week: ${d.thisWk} days
+  Last week: ${d.lastWk} days
+  Change:    ${d.thisWk >= d.lastWk ? '+' : ''}${d.thisWk - d.lastWk} days
+`);
+  window.location.href = `mailto:${EMAIL}?subject=${subject}&body=${body}`;
+}
+
+// ═══════════════════════════════════════════════
+// TAB SWITCHING
+// ═══════════════════════════════════════════════
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab===tab));
+  document.getElementById('vape-section').classList.toggle('active', tab==='vape');
+  document.getElementById('affirmations-section').classList.toggle('active', tab==='affirmations');
+  positionIndicator(tab);
+  if (tab==='affirmations' && !affState) loadAffirmationsData();
+}
+
+function positionIndicator(tab) {
+  const btn = document.querySelector(`.tab-btn[data-tab="${tab}"]`);
+  const ind = document.getElementById('tabIndicator');
+  ind.style.left = btn.offsetLeft + 'px';
+  ind.style.width = btn.offsetWidth + 'px';
+}
+
+// ═══════════════════════════════════════════════
+// PWA: SERVICE WORKER
+// ═══════════════════════════════════════════════
+if ('serviceWorker' in navigator) {
+  const swCode = `
+const CACHE='habit-v1';
+self.addEventListener('install',e=>{self.skipWaiting()});
+self.addEventListener('activate',e=>{e.waitUntil(clients.claim())});
+self.addEventListener('fetch',e=>{
+  if(e.request.method!=='GET')return;
+  e.respondWith(caches.match(e.request).then(r=>{
+    if(r)return r;
+    return fetch(e.request).then(res=>{
+      if(res&&res.ok&&e.request.url.startsWith('https://fonts.')){
+        const clone=res.clone();
+        caches.open(CACHE).then(c=>c.put(e.request,clone));
+      }
+      return res;
+    }).catch(()=>r);
+  }));
+});`;
+  try {
+    const blob = new Blob([swCode], { type:'application/javascript' });
+    navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(()=>{});
+  } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  positionIndicator('vape');
+  loadVapeData();
+});
+</script>
+</body>
+</html>
