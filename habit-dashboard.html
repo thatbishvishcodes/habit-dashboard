@@ -244,6 +244,29 @@ body{min-height:100%;background:#0d0d0d;font-family:'Inter',sans-serif;color:#ff
 .daily-banner strong{color:rgba(255,255,255,.85)}
 .daily-banner.goal-hit{background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.25);color:#f59e0b;font-family:'Press Start 2P',monospace;font-size:8px;line-height:1.8}
 
+/* ── SESSION PLANNER ── */
+.planner-card{margin:0 20px 16px;background:rgba(13,148,136,.04);border:1px solid rgba(13,148,136,.12);border-radius:16px;padding:18px 20px}
+.planner-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.planner-title{font-family:'Press Start 2P',monospace;font-size:7px;color:var(--teal);letter-spacing:1px}
+.planner-start-row{display:flex;align-items:center;gap:8px}
+.planner-start-row label{font-size:10px;color:#555}
+.planner-start-row input[type=time]{background:#111;border:1px solid #2a2a2a;border-radius:6px;color:#888;font-size:11px;padding:4px 8px;outline:none;font-family:'Inter',sans-serif;color-scheme:dark}
+.planner-start-row input[type=time]:focus{border-color:var(--teal);color:#fff}
+.planner-remaining-big{font-family:'Press Start 2P',monospace;font-size:38px;text-align:center;margin:4px 0 2px;line-height:1}
+.planner-remaining-big.easy{color:#22c55e}
+.planner-remaining-big.tight{color:#f59e0b}
+.planner-remaining-big.push{color:#ef4444}
+.planner-remaining-big.done{color:#22c55e;font-size:24px}
+.planner-unit{font-size:9px;color:#444;text-align:center;margin-bottom:10px;font-family:'Press Start 2P',monospace;letter-spacing:1px}
+.planner-tone{font-size:12px;font-style:italic;color:rgba(255,255,255,.5);text-align:center;margin-bottom:14px;line-height:1.5}
+.planner-combos{display:flex;flex-direction:column;gap:8px}
+.planner-combo{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:12px 16px}
+.planner-session-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0}
+.planner-session-dur{font-size:13px;color:#ddd}
+.planner-session-time{font-size:11px;color:var(--teal)}
+.planner-gap-row{text-align:center;font-size:10px;color:#303030;font-style:italic;padding:2px 0;line-height:1.5}
+.planner-no-start{font-size:11px;color:#444;text-align:center;padding:6px 0 2px;font-style:italic;line-height:1.6}
+
 @media(min-width:500px){
   .tab-bar,.section{max-width:430px;margin:0 auto}
   .section{box-shadow:0 0 40px rgba(0,0,0,.5)}
@@ -328,6 +351,24 @@ body{min-height:100%;background:#0d0d0d;font-family:'Inter',sans-serif;color:#ff
           <div class="goal-complete" id="goalComplete" style="display:none">★ GOAL!</div>
         </div>
       </div>
+    </div>
+
+    <!-- Session Planner -->
+    <div class="planner-card">
+      <div class="planner-header">
+        <span class="planner-title">SESSION PLANNER</span>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+          <div class="planner-start-row">
+            <label for="plannerStartTime">starts at</label>
+            <input type="time" id="plannerStartTime" />
+          </div>
+          <div class="planner-start-row">
+            <label for="plannerEndTime">ends at</label>
+            <input type="time" id="plannerEndTime" />
+          </div>
+        </div>
+      </div>
+      <div id="plannerBody"></div>
     </div>
 
     <!-- 10-day consistency strip -->
@@ -636,7 +677,9 @@ let affState  = null;
 // DATE HELPERS (IST = UTC+5:30)
 // ═══════════════════════════════════════════════
 function toISTDateStr(date) {
-  const ist = new Date(date.getTime() + 19800000);
+  // IST = UTC+5:30, day resets at 4:00 AM IST (not midnight)
+  // Subtract 4h so anything before 4 AM IST belongs to the previous logical day
+  const ist = new Date(date.getTime() + 19800000 - 14400000);
   return ist.toISOString().slice(0, 10);
 }
 function getISTToday() { return toISTDateStr(new Date()); }
@@ -990,23 +1033,241 @@ function processVapeData(vapeWins, resistances) {
 // ═══════════════════════════════════════════════
 // PROCESS AFFIRMATIONS DATA
 // ═══════════════════════════════════════════════
+
+// How many days streak was on a given date
+function streakEndingOn(dateStr, uniqueDaySet) {
+  let n = 0, cursor = dateStr;
+  while (uniqueDaySet.has(cursor)) { n++; cursor = subtractDay(cursor); }
+  return n;
+}
+
+function daysBetween(earlier, later) {
+  return Math.round(
+    (new Date(later + 'T00:00:00Z') - new Date(earlier + 'T00:00:00Z')) / 86400000
+  );
+}
+
 function processAffirmations(affirmations) {
   const uniqueDays = [...new Set(affirmations.map(a=>a.dateStr))];
-  const curStreak = calcCurrentStreak(uniqueDays);
-  const lonStreak = calcLongestStreak(uniqueDays);
-  const totalDays = uniqueDays.length;
+  const uniqueSet  = new Set(uniqueDays);
+  const curStreak  = calcCurrentStreak(uniqueDays);
+  const lonStreak  = calcLongestStreak(uniqueDays);
+  const totalDays  = uniqueDays.length;
 
-  const wb = getWeekBounds();
+  const wb    = getWeekBounds();
   const today = getISTToday();
   const thisWk = weekUniqueDays(affirmations, wb.thisStart, today);
   const lastWk = weekUniqueDays(affirmations, wb.lastStart, wb.lastEnd);
 
-  // Missed day check
-  const sorted = [...uniqueDays].sort();
+  const sorted  = [...uniqueDays].sort();
   const lastDay = sorted[sorted.length-1] || '';
-  const missed = lastDay !== today && lastDay !== subtractDay(today);
+  const missed  = lastDay !== today && lastDay !== subtractDay(today);
 
-  return { curStreak, lonStreak, totalDays, thisWk, lastWk, lastDay, missed, uniqueDays };
+  // Flame resilience: decays 1 per missed day, dies when misses ≥ earned streak
+  let effectiveFlame = curStreak;
+  if (curStreak === 0 && lastDay) {
+    const earned     = streakEndingOn(lastDay, uniqueSet);
+    const daysMissed = daysBetween(lastDay, today);
+    effectiveFlame   = Math.max(0, earned - daysMissed);
+  }
+
+  return { curStreak, lonStreak, totalDays, thisWk, lastWk, lastDay, missed, uniqueDays, effectiveFlame };
+}
+
+// ═══════════════════════════════════════════════
+// SESSION PLANNER
+// ═══════════════════════════════════════════════
+const PLANNER_LENGTHS = [180, 120, 90, 60, 45, 30];
+let _plannerInputReady = false;
+
+function fmtTime12(ms) {
+  const istMs = ms + 19800000;
+  const totalMins = Math.floor(istMs / 60000);
+  const h24 = Math.floor(totalMins / 60) % 24;
+  const m = totalMins % 60;
+  const ampm = h24 >= 12 ? 'PM' : 'AM';
+  const h12 = h24 % 12 || 12;
+  return `${h12}:${String(m).padStart(2,'0')} ${ampm}`;
+}
+
+function greedyDecomp(n, lengths) {
+  const result = []; let rem = n;
+  for (const len of lengths) { while (rem >= len) { result.push(len); rem -= len; } }
+  return rem === 0 ? result : null;
+}
+
+// Session length scales with level — easier sessions early, chunkier later
+function baseSessionLength(dailyGoal) {
+  if (dailyGoal <= 330) return 60;   // Diva → Headliner: 1h sessions
+  if (dailyGoal <= 450) return 90;   // Superstar → Sensation: 1.5h sessions
+  return 120;                         // Phenomenon + Mother: 2h sessions
+}
+
+// Fill with base-length sessions, use smaller units for the remainder
+function optimalSessionDecomp(remaining, baseLen) {
+  const fallbacks = baseLen === 120 ? [90, 60, 45, 30]
+                  : baseLen === 90  ? [60, 45, 30]
+                  :                   [45, 30];
+  for (let k = Math.floor(remaining / baseLen); k >= 1; k--) {
+    const rem = remaining - k * baseLen;
+    if (rem === 0) return Array(k).fill(baseLen);
+    const tail = greedyDecomp(rem, fallbacks);
+    if (tail) return [...Array(k).fill(baseLen), ...tail];
+  }
+  // Remaining smaller than one base session — fill with fallbacks
+  return greedyDecomp(remaining, fallbacks) || greedyDecomp(remaining, PLANNER_LENGTHS);
+}
+function comboKey(arr) { return [...arr].sort((a,b)=>b-a).join(','); }
+function fmtCombo(sessions) {
+  const counts = {};
+  for (const s of sessions) counts[s] = (counts[s]||0)+1;
+  return Object.entries(counts)
+    .sort((a,b)=>Number(b[0])-Number(a[0]))
+    .map(([len,cnt])=> cnt>1 ? `${cnt}×${len}m` : `${len}m`)
+    .join(' + ');
+}
+function exactCombos(remaining) {
+  if (remaining <= 0) return [];
+  const seen = new Set();
+  const combos = [];
+
+  function tryAdd(arr) {
+    if (!arr || !arr.length) return;
+    const sorted = [...arr].sort((a,b)=>b-a);
+    const k = sorted.join(',');
+    if (!seen.has(k)) { seen.add(k); combos.push(sorted); }
+  }
+
+  // Fill n units of `unit`, decompose remainder with fallbacks
+  function fillWith(unit, rem, fallbacks) {
+    const n = Math.floor(rem / unit);
+    if (n === 0) return null;
+    const r = rem - n * unit;
+    if (r === 0) return Array(n).fill(unit);
+    const tail = greedyDecomp(r, fallbacks);
+    return tail ? [...Array(n).fill(unit), ...tail] : null;
+  }
+
+  // 1. Fewest sessions — greedy largest-first
+  tryAdd(greedyDecomp(remaining, PLANNER_LENGTHS));
+  // 2. Fill with 60s, remainder with 45/30
+  tryAdd(fillWith(60, remaining, [45, 30]));
+  // 3. Fill with 45s, remainder with 30
+  tryAdd(fillWith(45, remaining, [30]));
+  // 4. Fill with 90s, remainder with 60/45/30
+  if (combos.length < 3) tryAdd(fillWith(90, remaining, [60, 45, 30]));
+  // 5. All 30s
+  if (combos.length < 3 && remaining % 30 === 0) tryAdd(Array(remaining/30).fill(30));
+
+  return combos.slice(0, 3);
+}
+
+function renderPlanner(d) {
+  // One-time input setup
+  if (!_plannerInputReady) {
+    _plannerInputReady = true;
+    const inpS = document.getElementById('plannerStartTime');
+    const inpE = document.getElementById('plannerEndTime');
+    const savedS = localStorage.getItem('planner_day_start');
+    const savedE = localStorage.getItem('planner_day_end');
+    if (savedS && inpS) inpS.value = savedS;
+    if (savedE && inpE) inpE.value = savedE;
+    if (inpS) inpS.addEventListener('change', () => {
+      localStorage.setItem('planner_day_start', inpS.value);
+      if (vapeState) renderPlanner(vapeState.d);
+    });
+    if (inpE) inpE.addEventListener('change', () => {
+      localStorage.setItem('planner_day_end', inpE.value);
+      if (vapeState) renderPlanner(vapeState.d);
+    });
+  }
+
+  const remaining = Math.max(0, d.lv.dailyGoal - d.todayMins);
+  const body = document.getElementById('plannerBody');
+  const nowUTC = Date.now();
+
+  const todayIST = getISTToday();
+  const [ty, tm, td] = todayIST.split('-').map(Number);
+  const midnightTodayIST = Date.UTC(ty, tm-1, td) - 19800000;
+
+  // Window start: max(now, day start time if set)
+  const startStr = localStorage.getItem('planner_day_start') ||
+                   document.getElementById('plannerStartTime')?.value || '';
+  let windowStartUTC = nowUTC;
+  if (startStr) {
+    const [sh, sm] = startStr.split(':').map(Number);
+    const dayStartUTC = midnightTodayIST + (sh*60+sm)*60000;
+    windowStartUTC = Math.max(nowUTC, dayStartUTC);
+  }
+
+  // Window end: user-set or default 1 AM next day IST
+  const endStr = localStorage.getItem('planner_day_end') ||
+                 document.getElementById('plannerEndTime')?.value || '';
+  let windowEndUTC;
+  if (endStr) {
+    const [eh, em] = endStr.split(':').map(Number);
+    windowEndUTC = midnightTodayIST + (eh*60+em)*60000;
+    // If end time is before now (e.g. 7pm set and it's already 9pm), treat as passed
+  } else {
+    // Default: 1:00 AM next IST day
+    windowEndUTC = midnightTodayIST + 86400000 + 60*60000;
+  }
+
+  const windowLeftMins = Math.max(0, Math.floor((windowEndUTC - windowStartUTC) / 60000));
+
+  if (remaining === 0) {
+    body.innerHTML = `
+      <div class="planner-remaining-big done">✓ DONE</div>
+      <div class="planner-tone">You hit it today. That's a Diva.</div>`;
+    return;
+  }
+
+  if (windowLeftMins <= 0) {
+    body.innerHTML = `
+      <div class="planner-remaining-big push">${remaining}</div>
+      <div class="planner-unit">mins remaining</div>
+      <div class="planner-tone">The window's closed. Pick it back up tomorrow.</div>`;
+    return;
+  }
+
+  // Urgency: ratio of sessions needed vs time available
+  const ratio = remaining / windowLeftMins;
+  let cls, tone;
+  if      (ratio < 0.35) { cls='easy';  tone="You've got space. Easy does it."; }
+  else if (ratio < 0.6)  { cls='tight'; tone="Keep the rhythm going."; }
+  else                   { cls='push';  tone="Back to back if you have to."; }
+
+  const combo = optimalSessionDecomp(remaining, baseSessionLength(d.lv.dailyGoal));
+  let combosHTML = '';
+  if (combo) {
+    const freeMs = Math.max(0, (windowLeftMins - remaining) * 60000);
+    const n = combo.length;
+    const gapMs = freeMs / (n + 1);
+    const gapMins = Math.round(gapMs / 60000);
+    let cursor = windowStartUTC + gapMs;
+    let rows = '';
+    for (let i = 0; i < n; i++) {
+      const sess = combo[i];
+      rows += `<div class="planner-session-row">
+        <span class="planner-session-dur">${sess}m</span>
+        <span class="planner-session-time">${fmtTime12(cursor)}</span>
+      </div>`;
+      cursor += sess * 60000;
+      if (i < n - 1) {
+        rows += `<div class="planner-gap-row">${gapMins > 0 ? gapMins+'m breathing space' : '—'}</div>`;
+        cursor += gapMs;
+      } else if (gapMins > 0) {
+        rows += `<div class="planner-gap-row">${gapMins}m before end</div>`;
+      }
+    }
+    combosHTML = `<div class="planner-combos"><div class="planner-combo">${rows}</div></div>`;
+  }
+
+  body.innerHTML = `
+    <div class="planner-remaining-big ${cls}">${remaining}</div>
+    <div class="planner-unit">mins remaining</div>
+    <div class="planner-tone">${tone}</div>
+    ${combosHTML}`;
 }
 
 // ═══════════════════════════════════════════════
@@ -1160,6 +1421,11 @@ function renderVape(d) {
   wrc.textContent = (rc.dir==='up' ? '↑' : '↓') + rc.pct + '%';
   wrc.className = 'week-change ' + rc.dir;
   document.getElementById('weekResistSub').textContent = `${d.thisWkResist} vs ${d.lastWkResist}`;
+
+  // ── Session planner ──
+  renderPlanner(d);
+  if (window._plannerTimer) clearInterval(window._plannerTimer);
+  window._plannerTimer = setInterval(() => { if (vapeState) renderPlanner(vapeState.d); }, 60000);
 }
 
 // ═══════════════════════════════════════════════
@@ -1192,19 +1458,21 @@ function renderAff(d) {
     wp.innerHTML = `<span>${d.thisWk}</span> day${d.thisWk !== 1 ? 's' : ''} this week &nbsp;·&nbsp; <span>${d.lastWk}</span> day${d.lastWk !== 1 ? 's' : ''} last week`;
   }
 
-  // Flame state
+  // Flame state — uses effectiveFlame so it decays gradually on missed days
   const flame = document.getElementById('flameWrap');
   const msg   = document.getElementById('flameMsg');
   flame.className = 'flame-wrap';
+  const ef = d.effectiveFlame; // decayed streak level
 
-  if (d.missed) {
+  if (ef === 0) {
+    flame.classList.add('dim');
+    msg.textContent = 'Come back to yourself';
+  } else if (d.missed) {
+    // Active decay — flame survives but shows missed quote
+    flame.classList.add(ef <= 2 ? 'small' : ef <= 7 ? 'medium' : 'large');
     const istDate = new Date(getISTToday().replace(/-/g, '/'));
     const idx = istDate.getDay() % MISSED_QUOTES.length;
     msg.textContent = '\u201c' + MISSED_QUOTES[idx] + '\u201d';
-    flame.classList.add(d.curStreak === 0 ? 'dim' : 'small');
-  } else if (d.curStreak === 0) {
-    flame.classList.add('dim');
-    msg.textContent = 'Come back to yourself';
   } else if (d.curStreak <= 3) {
     flame.classList.add('small');
     msg.textContent = 'You\u2019re remembering';
@@ -1217,9 +1485,12 @@ function renderAff(d) {
   } else if (d.curStreak <= 30) {
     flame.classList.add('blazing');
     msg.textContent = 'This is becoming who you are';
-  } else {
+  } else if (d.curStreak <= 60) {
     flame.classList.add('golden');
     msg.textContent = 'You are already this person';
+  } else {
+    flame.classList.add('golden');
+    msg.textContent = 'You\u2019ve become the vision';
   }
 }
 
