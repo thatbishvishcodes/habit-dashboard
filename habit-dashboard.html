@@ -206,18 +206,22 @@ body{min-height:100%;background:#0d0d0d;font-family:'Inter',sans-serif;color:#ff
 .consistency-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 .consistency-title{font-family:'Press Start 2P',monospace;font-size:7px;color:var(--violet);letter-spacing:1px}
 .consistency-count{font-size:11px;color:#555}
-.consistency-days{display:flex;gap:8px;margin-bottom:10px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
-.consistency-days::-webkit-scrollbar{display:none}
-.day-dot{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:5px}
-.day-dot-inner{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;border:2px solid #2a2a2a;color:#2a2a2a;transition:all .3s}
-.day-dot.hit .day-dot-inner{background:linear-gradient(135deg,var(--violet),var(--teal));border-color:var(--teal);color:#fff;box-shadow:0 0 8px rgba(13,148,136,.35)}
-.day-dot.today-dot .day-dot-inner{border-color:var(--violet);color:var(--violet);animation:pulseBorder 2s ease-in-out infinite}
-.day-dot.miss .day-dot-inner{background:#111;border-color:#1f1f1f;color:#333}
-.day-dot.pre .day-dot-inner{background:#0d0d0d;border-color:#181818;color:#1f1f1f}
-.day-dot-lbl{font-size:8px;color:#444;font-family:'Press Start 2P',monospace}
-.day-dot.hit .day-dot-lbl{color:var(--teal)}
-.day-dot.today-dot .day-dot-lbl{color:var(--violet)}
-.day-dot.pre .day-dot-lbl{color:#1a1a1a}
+/* ── CALENDAR GRID ── */
+.cal-wrap{display:flex;gap:4px;margin-bottom:10px}
+.cal-labels{display:flex;flex-direction:column;gap:3px;flex:0 0 auto;padding-top:17px}
+.cal-dow{width:14px;height:24px;display:flex;align-items:center;justify-content:center;font-size:6px;color:#333;font-family:'Press Start 2P',monospace}
+.cal-scroll{display:flex;gap:4px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}
+.cal-scroll::-webkit-scrollbar{display:none}
+.cal-week{display:flex;flex-direction:column;gap:3px;flex:0 0 auto}
+.cal-week-label{height:14px;font-size:6px;color:#444;font-family:'Press Start 2P',monospace;line-height:14px;white-space:nowrap}
+.cal-day{width:24px;height:24px;border-radius:4px;border:1px solid #1a1a1a;background:#0d0d0d;transition:background .2s}
+.cal-day.hit{background:linear-gradient(135deg,var(--violet),var(--teal));border-color:var(--teal);box-shadow:0 0 4px rgba(13,148,136,.2)}
+.cal-day.partial{background:rgba(13,148,136,.15);border-color:rgba(13,148,136,.25)}
+.cal-day.miss{background:#0d0d0d;border-color:#161616}
+.cal-day.pre{opacity:.35}
+.cal-day.future{background:transparent;border-color:#111}
+.cal-day.empty{background:transparent;border:none}
+.cal-day.today{outline:2px solid var(--violet);outline-offset:1px;animation:pulseBorder 2s ease-in-out infinite}
 @keyframes pulseBorder{0%,100%{box-shadow:0 0 0 rgba(124,58,237,0)}50%{box-shadow:0 0 8px rgba(124,58,237,.5)}}
 .consistency-footer{font-size:11px;color:#555;text-align:center;line-height:1.4}
 .consistency-footer strong{color:var(--teal)}
@@ -374,13 +378,24 @@ body{min-height:100%;background:#0d0d0d;font-family:'Inter',sans-serif;color:#ff
       <div id="plannerBody"></div>
     </div>
 
-    <!-- 10-day consistency strip -->
+    <!-- Contribution calendar -->
     <div class="consistency-card">
       <div class="consistency-header">
         <span class="consistency-title" id="consistencyTitle">PROGRESS</span>
-        <span class="consistency-count" id="consistencyCount">0 / 10 qualifying</span>
+        <span class="consistency-count" id="consistencyCount">0 / 7 qualifying</span>
       </div>
-      <div class="consistency-days" id="consistencyDays"></div>
+      <div class="cal-wrap">
+        <div class="cal-labels" id="calDowLabels">
+          <div class="cal-dow">M</div>
+          <div class="cal-dow">T</div>
+          <div class="cal-dow">W</div>
+          <div class="cal-dow">T</div>
+          <div class="cal-dow">F</div>
+          <div class="cal-dow">S</div>
+          <div class="cal-dow">S</div>
+        </div>
+        <div class="cal-scroll" id="calScroll"></div>
+      </div>
       <div class="consistency-footer" id="consistencyFooter"></div>
     </div>
 
@@ -990,7 +1005,7 @@ function processVapeData(vapeWins, resistances) {
   const today = getISTToday();
 
   // Rolling window level simulation
-  const { lvIdx, consecutiveMisses, historyDays, qualifyingInWindow, longestQualStreak, dayMap } =
+  const { lvIdx, consecutiveMisses, historyDays, qualifyingInWindow, longestQualStreak, dayMap, levelUpDate } =
     computeLevelStats(vapeWins);
   const lv = LEVELS[lvIdx];
 
@@ -1032,6 +1047,7 @@ function processVapeData(vapeWins, resistances) {
 
   return {
     lv, lvIdx, consecutiveMisses, historyDays, qualifyingInWindow, longestQualStreak,
+    dayMap, levelUpDate,
     lifetimeHrs, totalMins, topBadge, nextMilestone, hrsToNextMilestone,
     todaySessions: todayWins.length, todayMins, todayResist,
     bestDate, bestMins,
@@ -1283,6 +1299,104 @@ function renderPlanner(d) {
 }
 
 // ═══════════════════════════════════════════════
+// RENDER: CONTRIBUTION CALENDAR
+// ═══════════════════════════════════════════════
+function renderCalendar(d) {
+  const today       = getISTToday();
+  const dayMap      = d.dayMap;
+  const levelUpDate = d.levelUpDate || today;
+  const goal        = d.lv.dailyGoal;
+
+  // Find the earliest date we have data for (or levelUpDate - 3 for context)
+  const allDataDays = Object.keys(dayMap).sort();
+  let firstDay = allDataDays.length ? allDataDays[0] : today;
+  // Include a few pre-level context days for visual continuity
+  for (let p = 0; p < 3; p++) firstDay = subtractDay(firstDay);
+
+  // Walk back to the Monday on or before firstDay
+  function toMonday(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00Z');
+    const dow = d.getUTCDay(); // 0=Sun,1=Mon...6=Sat
+    const offset = dow === 0 ? 6 : dow - 1; // steps back to Monday
+    d.setUTCDate(d.getUTCDate() - offset);
+    return d.toISOString().slice(0, 10);
+  }
+  // Walk forward to Sunday on or after today
+  function toSunday(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00Z');
+    const dow = d.getUTCDay();
+    const offset = dow === 0 ? 0 : 7 - dow;
+    d.setUTCDate(d.getUTCDate() + offset);
+    return d.toISOString().slice(0, 10);
+  }
+  function addDays(dateStr, n) {
+    const d = new Date(dateStr + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  }
+
+  const calStart = toMonday(firstDay);   // first Monday
+  const calEnd   = toSunday(today);      // last Sunday (covers this week)
+
+  // Build array of all days from calStart to calEnd
+  const allCalDays = [];
+  let cur = calStart;
+  while (cur <= calEnd) {
+    allCalDays.push(cur);
+    cur = addDays(cur, 1);
+  }
+
+  // Group into weeks (each week = 7 days, Mon→Sun)
+  const weeks = [];
+  for (let i = 0; i < allCalDays.length; i += 7) {
+    weeks.push(allCalDays.slice(i, i + 7));
+  }
+
+  // Month abbreviations
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  let html = '';
+  let prevMonth = -1;
+
+  for (const week of weeks) {
+    // Month label: use month of first non-empty day in this week
+    const firstDateInWeek = week[0];
+    const monthIdx = parseInt(firstDateInWeek.slice(5, 7)) - 1;
+    const monthLabel = monthIdx !== prevMonth ? MONTHS[monthIdx] : '';
+    prevMonth = monthIdx;
+
+    html += `<div class="cal-week">`;
+    html += `<div class="cal-week-label">${monthLabel}</div>`;
+
+    for (const day of week) {
+      const mins  = dayMap[day]?.mins || 0;
+      const isPre = day < levelUpDate;
+      const isToday = day === today;
+      const isFuture = day > today;
+
+      let cls = '';
+      if (isFuture)       cls = 'future';
+      else if (mins >= goal) cls = 'hit';
+      else if (mins > 0)  cls = 'partial';
+      else                cls = 'miss';
+
+      if (isPre && !isFuture) cls += ' pre';
+      if (isToday) cls += ' today';
+
+      html += `<div class="cal-day ${cls}" title="${day}"></div>`;
+    }
+
+    html += `</div>`;
+  }
+
+  const scroll = document.getElementById('calScroll');
+  scroll.innerHTML = html;
+
+  // Auto-scroll to the last (current) week
+  setTimeout(() => { scroll.scrollLeft = scroll.scrollWidth; }, 50);
+}
+
+// ═══════════════════════════════════════════════
 // RENDER: VAPE
 // ═══════════════════════════════════════════════
 function renderVape(d) {
@@ -1377,20 +1491,8 @@ function renderVape(d) {
   ring.classList.toggle('complete', hitGoal);
   document.getElementById('goalComplete').style.display = hitGoal ? 'block' : 'none';
 
-  // ── Consistency strip (scrollable, resets at level-up) ──
-  const container = document.getElementById('consistencyDays');
-  container.innerHTML = d.historyDays.map(day => {
-    const dayNum = parseInt(day.dateStr.split('-')[2]);
-    let cls, icon;
-    if (day.isPre)        { cls = 'pre';       icon = ''; }
-    else if (day.hit)     { cls = 'hit';       icon = '★'; }
-    else if (day.isToday) { cls = 'today-dot'; icon = '·'; }
-    else                  { cls = 'miss';      icon = ''; }
-    return `<div class="day-dot ${cls}"><div class="day-dot-inner">${icon}</div><div class="day-dot-lbl">${dayNum}</div></div>`;
-  }).join('');
-  // Auto-scroll to most recent day
-  setTimeout(() => { container.scrollLeft = container.scrollWidth; }, 50);
-
+  // ── Contribution calendar ──
+  renderCalendar(d);
   document.getElementById('consistencyTitle').textContent = d.lv.name.toUpperCase();
   document.getElementById('consistencyCount').textContent = `${d.qualifyingInWindow}/7 qualifying`;
 
