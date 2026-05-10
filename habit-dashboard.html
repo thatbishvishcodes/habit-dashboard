@@ -855,10 +855,16 @@ function computeLevelStats(vapeWins) {
   let cur = allDates[0];
   while (cur <= today) { allDaysInRange.push(cur); cur = addDay(cur); }
 
+  const dayGoalMap = {}; // dateStr → goal that was active on that day
+
   for (let i = 0; i < allDaysInRange.length; i++) {
     const dateStr = allDaysInRange[i];
     const isPast  = dateStr < today;
     const dayMins = dayMap[dateStr]?.mins || 0;
+
+    // Record the goal active on this day BEFORE any level changes
+    dayGoalMap[dateStr] = LEVELS[lvIdx].dailyGoal;
+
     const hit     = dayMins >= LEVELS[lvIdx].dailyGoal;
 
     if (hit) {
@@ -923,7 +929,7 @@ function computeLevelStats(vapeWins) {
   const qualifyingInWindow = allDaysInRange.slice(levelUpIdx)
     .filter(d => d <= today && (dayMap[d]?.mins || 0) >= goal).length;
 
-  return { lvIdx, consecutiveMisses, historyDays, qualifyingInWindow, longestQualStreak, dayMap, levelUpDate };
+  return { lvIdx, consecutiveMisses, historyDays, qualifyingInWindow, longestQualStreak, dayMap, dayGoalMap, levelUpDate };
 }
 
 // ═══════════════════════════════════════════════
@@ -999,7 +1005,7 @@ function processVapeData(vapeWins, resistances) {
   const today = getISTToday();
 
   // Rolling window level simulation
-  const { lvIdx, consecutiveMisses, historyDays, qualifyingInWindow, longestQualStreak, dayMap, levelUpDate } =
+  const { lvIdx, consecutiveMisses, historyDays, qualifyingInWindow, longestQualStreak, dayMap, dayGoalMap, levelUpDate } =
     computeLevelStats(vapeWins);
   const lv = LEVELS[lvIdx];
 
@@ -1041,7 +1047,7 @@ function processVapeData(vapeWins, resistances) {
 
   return {
     lv, lvIdx, consecutiveMisses, historyDays, qualifyingInWindow, longestQualStreak,
-    dayMap, levelUpDate,
+    dayMap, dayGoalMap, levelUpDate,
     lifetimeHrs, totalMins, topBadge, nextMilestone, hrsToNextMilestone,
     todaySessions: todayWins.length, todayMins, todayResist,
     bestDate, bestMins,
@@ -1307,9 +1313,10 @@ function calDateAddDays(dateStr, n) {
 
 function renderCalMonth(year, month) {
   // month = 1-12
-  const today   = getISTToday();
-  const dayMap  = _calData.dayMap;
-  const goal    = _calData.lv.dailyGoal;
+  const today      = getISTToday();
+  const dayMap     = _calData.dayMap;
+  const dayGoalMap = _calData.dayGoalMap || {};
+  const curGoal    = _calData.lv.dailyGoal;
 
   const MONTH_NAMES = ['January','February','March','April','May','June',
                        'July','August','September','October','November','December'];
@@ -1353,15 +1360,17 @@ function renderCalMonth(year, month) {
   // Day cells
   for (let day = 1; day <= daysInMonth; day++) {
     const dateStr = `${String(year).padStart(4,'0')}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-    const mins    = dayMap[dateStr]?.mins || 0;
-    const isToday = dateStr === today;
+    const mins     = dayMap[dateStr]?.mins || 0;
+    const isToday  = dateStr === today;
     const isFuture = dateStr > today;
+    // Use the goal that was active on this specific day, not today's goal
+    const goalForDay = dayGoalMap[dateStr] || curGoal;
 
     let cls = '';
-    if (isFuture)         cls = 'future';
-    else if (mins >= goal) cls = 'hit';
-    else if (mins > 0)    cls = 'partial';
-    else                  cls = 'miss';
+    if (isFuture)              cls = 'future';
+    else if (mins >= goalForDay) cls = 'hit';
+    else if (mins > 0)         cls = 'partial';
+    else                       cls = 'miss';
 
     if (isToday) cls += ' today';
     html += `<div class="cal-day ${cls}" title="${dateStr}: ${mins}m"></div>`;
