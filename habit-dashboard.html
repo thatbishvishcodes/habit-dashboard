@@ -207,18 +207,18 @@ body{min-height:100%;background:#0d0d0d;font-family:'Inter',sans-serif;color:#ff
 .consistency-title{font-family:'Press Start 2P',monospace;font-size:7px;color:var(--violet);letter-spacing:1px}
 .consistency-count{font-size:11px;color:#555}
 /* ── CALENDAR GRID ── */
-.cal-wrap{display:flex;gap:4px;margin-bottom:10px}
-.cal-labels{display:flex;flex-direction:column;gap:3px;flex:0 0 auto;padding-top:17px}
-.cal-dow{width:14px;height:24px;display:flex;align-items:center;justify-content:center;font-size:6px;color:#333;font-family:'Press Start 2P',monospace}
-.cal-scroll{display:flex;gap:4px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}
-.cal-scroll::-webkit-scrollbar{display:none}
-.cal-week{display:flex;flex-direction:column;gap:3px;flex:0 0 auto}
-.cal-week-label{height:14px;font-size:6px;color:#444;font-family:'Press Start 2P',monospace;line-height:14px;white-space:nowrap}
-.cal-day{width:24px;height:24px;border-radius:4px;border:1px solid #1a1a1a;background:#0d0d0d;transition:background .2s}
+.cal-month-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.cal-nav-btn{background:none;border:none;color:#555;font-size:16px;cursor:pointer;padding:2px 8px;line-height:1;transition:color .15s}
+.cal-nav-btn:hover{color:#fff}
+.cal-nav-btn:disabled{color:#222;cursor:default}
+.cal-month-title{font-family:'Press Start 2P',monospace;font-size:7px;color:#888;letter-spacing:1px}
+.cal-dow-header{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px}
+.cal-dow-header span{text-align:center;font-family:'Press Start 2P',monospace;font-size:6px;color:#333;padding:2px 0}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-day{aspect-ratio:1;border-radius:4px;border:1px solid #1a1a1a;background:#0d0d0d;transition:background .2s}
 .cal-day.hit{background:linear-gradient(135deg,var(--violet),var(--teal));border-color:var(--teal);box-shadow:0 0 4px rgba(13,148,136,.2)}
-.cal-day.partial{background:rgba(13,148,136,.15);border-color:rgba(13,148,136,.25)}
+.cal-day.partial{background:rgba(124,58,237,.2);border-color:rgba(124,58,237,.35)}
 .cal-day.miss{background:#0d0d0d;border-color:#161616}
-.cal-day.pre{opacity:.35}
 .cal-day.future{background:transparent;border-color:#111}
 .cal-day.empty{background:transparent;border:none}
 .cal-day.today{outline:2px solid var(--violet);outline-offset:1px;animation:pulseBorder 2s ease-in-out infinite}
@@ -384,18 +384,15 @@ body{min-height:100%;background:#0d0d0d;font-family:'Inter',sans-serif;color:#ff
         <span class="consistency-title" id="consistencyTitle">PROGRESS</span>
         <span class="consistency-count" id="consistencyCount">0 / 7 qualifying</span>
       </div>
-      <div class="cal-wrap">
-        <div class="cal-labels" id="calDowLabels">
-          <div class="cal-dow">M</div>
-          <div class="cal-dow">T</div>
-          <div class="cal-dow">W</div>
-          <div class="cal-dow">T</div>
-          <div class="cal-dow">F</div>
-          <div class="cal-dow">S</div>
-          <div class="cal-dow">S</div>
-        </div>
-        <div class="cal-scroll" id="calScroll"></div>
+      <div class="cal-month-nav">
+        <button class="cal-nav-btn" id="calPrev">◀</button>
+        <span class="cal-month-title" id="calMonthTitle">—</span>
+        <button class="cal-nav-btn" id="calNext">▶</button>
       </div>
+      <div class="cal-dow-header">
+        <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+      </div>
+      <div class="cal-grid" id="calGrid"></div>
       <div class="consistency-footer" id="consistencyFooter"></div>
     </div>
 
@@ -885,12 +882,11 @@ function computeLevelStats(vapeWins) {
       }
     }
 
-    // Level UP: 7 qualifying days in rolling 10-day window, counting only from levelUpIdx
+    // Level UP: 7 qualifying days total since this level started (no time limit)
     if (lvIdx < LEVELS.length - 1) {
-      const winStart = Math.max(levelUpIdx, i - 9);
-      const window10 = allDaysInRange.slice(winStart, i + 1);
       const goal = LEVELS[lvIdx].dailyGoal;
-      const hits = window10.filter(d => (dayMap[d]?.mins || 0) >= goal).length;
+      const hits = allDaysInRange.slice(levelUpIdx, i + 1)
+        .filter(d => (dayMap[d]?.mins || 0) >= goal).length;
       if (hits >= 7) {
         lvIdx++;
         levelUpIdx = i + 1; // next level starts fresh from next day
@@ -923,11 +919,9 @@ function computeLevelStats(vapeWins) {
     d = addDay(d);
   }
 
-  // Qualifying count: rolling 10-day window capped to levelUpIdx
-  const todayIdx = allDaysInRange.length - 1;
-  const winStart = Math.max(levelUpIdx, todayIdx - 9);
-  const qualifyingInWindow = allDaysInRange.slice(winStart, todayIdx + 1)
-    .filter(d => (dayMap[d]?.mins || 0) >= goal).length;
+  // Qualifying count: total days meeting goal since current level started
+  const qualifyingInWindow = allDaysInRange.slice(levelUpIdx)
+    .filter(d => d <= today && (dayMap[d]?.mins || 0) >= goal).length;
 
   return { lvIdx, consecutiveMisses, historyDays, qualifyingInWindow, longestQualStreak, dayMap, levelUpDate };
 }
@@ -1299,101 +1293,109 @@ function renderPlanner(d) {
 }
 
 // ═══════════════════════════════════════════════
-// RENDER: CONTRIBUTION CALENDAR
+// RENDER: CONTRIBUTION CALENDAR (month grid)
 // ═══════════════════════════════════════════════
-function renderCalendar(d) {
-  const today       = getISTToday();
-  const dayMap      = d.dayMap;
-  const levelUpDate = d.levelUpDate || today;
-  const goal        = d.lv.dailyGoal;
+let _calViewYear  = null;
+let _calViewMonth = null;
+let _calData      = null; // reference to d for nav buttons
 
-  // Find the earliest date we have data for (or levelUpDate - 3 for context)
+function calDateAddDays(dateStr, n) {
+  const dt = new Date(dateStr + 'T00:00:00Z');
+  dt.setUTCDate(dt.getUTCDate() + n);
+  return dt.toISOString().slice(0, 10);
+}
+
+function renderCalMonth(year, month) {
+  // month = 1-12
+  const today   = getISTToday();
+  const dayMap  = _calData.dayMap;
+  const goal    = _calData.lv.dailyGoal;
+
+  const MONTH_NAMES = ['January','February','March','April','May','June',
+                       'July','August','September','October','November','December'];
+  document.getElementById('calMonthTitle').textContent =
+    `${MONTH_NAMES[month - 1]} ${year}`;
+
+  // Find earliest data day to know if prev is available
   const allDataDays = Object.keys(dayMap).sort();
-  let firstDay = allDataDays.length ? allDataDays[0] : today;
-  // Include a few pre-level context days for visual continuity
-  for (let p = 0; p < 3; p++) firstDay = subtractDay(firstDay);
+  const firstDataDay = allDataDays.length ? allDataDays[0] : today;
+  const firstDataYear  = parseInt(firstDataDay.slice(0,4));
+  const firstDataMonth = parseInt(firstDataDay.slice(5,7));
 
-  // Walk back to the Monday on or before firstDay
-  function toMonday(dateStr) {
-    const d = new Date(dateStr + 'T00:00:00Z');
-    const dow = d.getUTCDay(); // 0=Sun,1=Mon...6=Sat
-    const offset = dow === 0 ? 6 : dow - 1; // steps back to Monday
-    d.setUTCDate(d.getUTCDate() - offset);
-    return d.toISOString().slice(0, 10);
-  }
-  // Walk forward to Sunday on or after today
-  function toSunday(dateStr) {
-    const d = new Date(dateStr + 'T00:00:00Z');
-    const dow = d.getUTCDay();
-    const offset = dow === 0 ? 0 : 7 - dow;
-    d.setUTCDate(d.getUTCDate() + offset);
-    return d.toISOString().slice(0, 10);
-  }
-  function addDays(dateStr, n) {
-    const d = new Date(dateStr + 'T00:00:00Z');
-    d.setUTCDate(d.getUTCDate() + n);
-    return d.toISOString().slice(0, 10);
-  }
+  // Disable prev if we're at or before first data month
+  const prevBtn = document.getElementById('calPrev');
+  const nextBtn = document.getElementById('calNext');
+  prevBtn.disabled = (year < firstDataYear) ||
+                     (year === firstDataYear && month <= firstDataMonth);
+  // Disable next if viewing current month
+  const todayYear  = parseInt(today.slice(0,4));
+  const todayMonth = parseInt(today.slice(5,7));
+  nextBtn.disabled = (year === todayYear && month === todayMonth);
 
-  const calStart = toMonday(firstDay);   // first Monday
-  const calEnd   = toSunday(today);      // last Sunday (covers this week)
+  // First day of this month
+  const firstOfMonth = `${String(year).padStart(4,'0')}-${String(month).padStart(2,'0')}-01`;
+  const firstDt = new Date(firstOfMonth + 'T00:00:00Z');
+  // Day of week of 1st: 0=Sun…6=Sat → convert to Mon-based: Mon=0…Sun=6
+  const rawDow = firstDt.getUTCDay();
+  const startOffset = rawDow === 0 ? 6 : rawDow - 1; // blank cells before 1st
 
-  // Build array of all days from calStart to calEnd
-  const allCalDays = [];
-  let cur = calStart;
-  while (cur <= calEnd) {
-    allCalDays.push(cur);
-    cur = addDays(cur, 1);
-  }
-
-  // Group into weeks (each week = 7 days, Mon→Sun)
-  const weeks = [];
-  for (let i = 0; i < allCalDays.length; i += 7) {
-    weeks.push(allCalDays.slice(i, i + 7));
-  }
-
-  // Month abbreviations
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  // Last day of month
+  const lastDt = new Date(Date.UTC(year, month, 0)); // day 0 of next month = last of this
+  const daysInMonth = lastDt.getUTCDate();
 
   let html = '';
-  let prevMonth = -1;
 
-  for (const week of weeks) {
-    // Month label: use month of first non-empty day in this week
-    const firstDateInWeek = week[0];
-    const monthIdx = parseInt(firstDateInWeek.slice(5, 7)) - 1;
-    const monthLabel = monthIdx !== prevMonth ? MONTHS[monthIdx] : '';
-    prevMonth = monthIdx;
-
-    html += `<div class="cal-week">`;
-    html += `<div class="cal-week-label">${monthLabel}</div>`;
-
-    for (const day of week) {
-      const mins  = dayMap[day]?.mins || 0;
-      const isPre = day < levelUpDate;
-      const isToday = day === today;
-      const isFuture = day > today;
-
-      let cls = '';
-      if (isFuture)       cls = 'future';
-      else if (mins >= goal) cls = 'hit';
-      else if (mins > 0)  cls = 'partial';
-      else                cls = 'miss';
-
-      if (isPre && !isFuture) cls += ' pre';
-      if (isToday) cls += ' today';
-
-      html += `<div class="cal-day ${cls}" title="${day}"></div>`;
-    }
-
-    html += `</div>`;
+  // Leading empty cells
+  for (let e = 0; e < startOffset; e++) {
+    html += `<div class="cal-day empty"></div>`;
   }
 
-  const scroll = document.getElementById('calScroll');
-  scroll.innerHTML = html;
+  // Day cells
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${String(year).padStart(4,'0')}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const mins    = dayMap[dateStr]?.mins || 0;
+    const isToday = dateStr === today;
+    const isFuture = dateStr > today;
 
-  // Auto-scroll to the last (current) week
-  setTimeout(() => { scroll.scrollLeft = scroll.scrollWidth; }, 50);
+    let cls = '';
+    if (isFuture)         cls = 'future';
+    else if (mins >= goal) cls = 'hit';
+    else if (mins > 0)    cls = 'partial';
+    else                  cls = 'miss';
+
+    if (isToday) cls += ' today';
+    html += `<div class="cal-day ${cls}" title="${dateStr}: ${mins}m"></div>`;
+  }
+
+  document.getElementById('calGrid').innerHTML = html;
+}
+
+function renderCalendar(d) {
+  const today = getISTToday();
+  _calData      = d;
+  _calViewYear  = parseInt(today.slice(0,4));
+  _calViewMonth = parseInt(today.slice(5,7));
+
+  renderCalMonth(_calViewYear, _calViewMonth);
+
+  // Wire up nav buttons (replace to avoid duplicate listeners)
+  const prevBtn = document.getElementById('calPrev');
+  const nextBtn = document.getElementById('calNext');
+  const newPrev = prevBtn.cloneNode(true);
+  const newNext = nextBtn.cloneNode(true);
+  prevBtn.parentNode.replaceChild(newPrev, prevBtn);
+  nextBtn.parentNode.replaceChild(newNext, nextBtn);
+
+  document.getElementById('calPrev').addEventListener('click', () => {
+    _calViewMonth--;
+    if (_calViewMonth < 1) { _calViewMonth = 12; _calViewYear--; }
+    renderCalMonth(_calViewYear, _calViewMonth);
+  });
+  document.getElementById('calNext').addEventListener('click', () => {
+    _calViewMonth++;
+    if (_calViewMonth > 12) { _calViewMonth = 1; _calViewYear++; }
+    renderCalMonth(_calViewYear, _calViewMonth);
+  });
 }
 
 // ═══════════════════════════════════════════════
@@ -1502,9 +1504,9 @@ function renderVape(d) {
   if (isLocked) {
     footerEl.innerHTML = `<strong>You've reached the top — Mother status!</strong>`;
   } else if (needed === 0) {
-    footerEl.innerHTML = `<strong>Level-up threshold met!</strong> 7/10 qualifying days ✓`;
+    footerEl.innerHTML = `<strong>Level-up threshold met!</strong> 7 qualifying days ✓`;
   } else {
-    let txt = `${needed} more qualifying day${needed !== 1 ? 's' : ''} in this window → <strong>${nextLvName}</strong>`;
+    let txt = `${needed} more qualifying day${needed !== 1 ? 's' : ''} to reach <strong>${nextLvName}</strong>`;
     if (d.lvIdx > 0 && d.consecutiveMisses >= 3) {
       const missesLeft = Math.max(0, 5 - d.consecutiveMisses);
       if (missesLeft > 0) {
