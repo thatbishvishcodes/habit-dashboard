@@ -217,6 +217,8 @@ body{min-height:100%;background:#0d0d0d;font-family:'Inter',sans-serif;color:#ff
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
 .cal-day{aspect-ratio:1;border-radius:4px;border:1px solid #1a1a1a;background:#0d0d0d;transition:background .2s}
 .cal-day.hit{background:linear-gradient(135deg,var(--violet),var(--teal));border-color:var(--teal);box-shadow:0 0 4px rgba(13,148,136,.2)}
+.cal-day.good{background:var(--teal);border-color:var(--teal);box-shadow:0 0 4px rgba(13,148,136,.2)}
+.cal-day.perfect{background:linear-gradient(135deg,var(--violet),var(--teal));border-color:#f59e0b;box-shadow:0 0 6px rgba(245,158,11,.45),inset 0 0 0 1px rgba(245,158,11,.2)}
 .cal-day.partial{background:rgba(124,58,237,.2);border-color:rgba(124,58,237,.35)}
 .cal-day.miss{background:#0d0d0d;border-color:#161616}
 .cal-day.future{background:transparent;border-color:#111}
@@ -610,8 +612,13 @@ const LEVELS = [
   { name:'Icon',       dailyGoal:420 },
   { name:'Sensation',  dailyGoal:450 },
   { name:'Phenomenon', dailyGoal:480 },
-  { name:'Mother',     dailyGoal:600, locked:true }
+  { name:'Luminary',   dailyGoal:510 },
+  { name:'Immortal',   dailyGoal:540 },
+  { name:'Celestial',  dailyGoal:570 },
+  { name:'Mother',     dailyGoal:600 }
 ];
+// Sensation+ levels use a 2-threshold system and require 10 perfect days to level up
+const SENSATION_GOAL = 450;
 
 // hrs thresholds only — no labels, emoji only shown in UI
 const MILESTONES = [
@@ -888,14 +895,15 @@ function computeLevelStats(vapeWins) {
       }
     }
 
-    // Level UP: 7 qualifying days total since this level started (no time limit)
+    // Level UP: 7 days for pre-Sensation levels, 10 perfect days for Sensation+
     if (lvIdx < LEVELS.length - 1) {
       const goal = LEVELS[lvIdx].dailyGoal;
+      const required = goal >= SENSATION_GOAL ? 10 : 7;
       const hits = allDaysInRange.slice(levelUpIdx, i + 1)
         .filter(d => (dayMap[d]?.mins || 0) >= goal).length;
-      if (hits >= 7) {
+      if (hits >= required) {
         lvIdx++;
-        levelUpIdx = i + 1; // next level starts fresh from next day
+        levelUpIdx = i + 1;
         consecutiveMisses = 0;
       }
     }
@@ -926,10 +934,11 @@ function computeLevelStats(vapeWins) {
   }
 
   // Qualifying count: total days meeting goal since current level started
+  const required = goal >= SENSATION_GOAL ? 10 : 7;
   const qualifyingInWindow = allDaysInRange.slice(levelUpIdx)
     .filter(d => d <= today && (dayMap[d]?.mins || 0) >= goal).length;
 
-  return { lvIdx, consecutiveMisses, historyDays, qualifyingInWindow, longestQualStreak, dayMap, dayGoalMap, levelUpDate };
+  return { lvIdx, consecutiveMisses, historyDays, qualifyingInWindow, required, longestQualStreak, dayMap, dayGoalMap, levelUpDate };
 }
 
 // ═══════════════════════════════════════════════
@@ -1005,7 +1014,7 @@ function processVapeData(vapeWins, resistances) {
   const today = getISTToday();
 
   // Rolling window level simulation
-  const { lvIdx, consecutiveMisses, historyDays, qualifyingInWindow, longestQualStreak, dayMap, dayGoalMap, levelUpDate } =
+  const { lvIdx, consecutiveMisses, historyDays, qualifyingInWindow, required, longestQualStreak, dayMap, dayGoalMap, levelUpDate } =
     computeLevelStats(vapeWins);
   const lv = LEVELS[lvIdx];
 
@@ -1046,7 +1055,7 @@ function processVapeData(vapeWins, resistances) {
   }
 
   return {
-    lv, lvIdx, consecutiveMisses, historyDays, qualifyingInWindow, longestQualStreak,
+    lv, lvIdx, consecutiveMisses, historyDays, qualifyingInWindow, required, longestQualStreak,
     dayMap, dayGoalMap, levelUpDate,
     lifetimeHrs, totalMins, topBadge, nextMilestone, hrsToNextMilestone,
     todaySessions: todayWins.length, todayMins, todayResist,
@@ -1363,14 +1372,24 @@ function renderCalMonth(year, month) {
     const mins     = dayMap[dateStr]?.mins || 0;
     const isToday  = dateStr === today;
     const isFuture = dateStr > today;
-    // Use the goal that was active on this specific day, not today's goal
     const goalForDay = dayGoalMap[dateStr] || curGoal;
+    const lowerForDay = goalForDay - 60; // 1-hour window below goal
 
     let cls = '';
-    if (isFuture)              cls = 'future';
-    else if (mins >= goalForDay) cls = 'hit';
-    else if (mins > 0)         cls = 'partial';
-    else                       cls = 'miss';
+    if (isFuture) {
+      cls = 'future';
+    } else if (goalForDay >= SENSATION_GOAL) {
+      // New 2-threshold system for Sensation+ days
+      if (mins >= goalForDay)   cls = 'perfect';
+      else if (mins >= lowerForDay) cls = 'good';
+      else if (mins > 0)        cls = 'partial';
+      else                      cls = 'miss';
+    } else {
+      // Historical levels — original hit/partial/miss
+      if (mins >= goalForDay)   cls = 'hit';
+      else if (mins > 0)        cls = 'partial';
+      else                      cls = 'miss';
+    }
 
     if (isToday) cls += ' today';
     html += `<div class="cal-day ${cls}" title="${dateStr}: ${mins}m"></div>`;
@@ -1420,11 +1439,11 @@ function renderVape(d) {
     VAPE_REMINDERS[dayOfYear % VAPE_REMINDERS.length];
 
   // ── Identity card ──
-  const isLocked = !!d.lv.locked;
-  document.getElementById('identityCard').classList.toggle('level-locked', isLocked);
-  document.getElementById('levelBadge').textContent = isLocked ? '???' : ('LVL ' + (d.lvIdx + 1));
-  document.getElementById('levelTitle').textContent = isLocked ? '???' : d.lv.name;
-  document.getElementById('motherComing').style.display = isLocked ? 'block' : 'none';
+  const isLocked = false; // all levels now unlocked
+  document.getElementById('identityCard').classList.toggle('level-locked', false);
+  document.getElementById('levelBadge').textContent = 'LVL ' + (d.lvIdx + 1);
+  document.getElementById('levelTitle').textContent = d.lv.name;
+  document.getElementById('motherComing').style.display = 'none';
 
   // Hours reclaimed hero
   document.getElementById('lifetimeHours').textContent = d.lifetimeHrs;
@@ -1505,17 +1524,19 @@ function renderVape(d) {
   // ── Contribution calendar ──
   renderCalendar(d);
   document.getElementById('consistencyTitle').textContent = d.lv.name.toUpperCase();
-  document.getElementById('consistencyCount').textContent = `${d.qualifyingInWindow}/7 qualifying`;
+  const isPerfectSystem = d.lv.dailyGoal >= SENSATION_GOAL;
+  const countLabel = isPerfectSystem ? 'perfect days' : 'qualifying';
+  document.getElementById('consistencyCount').textContent = `${d.qualifyingInWindow}/${d.required} ${countLabel}`;
 
   const nextLvName = d.lvIdx < LEVELS.length - 1 ? LEVELS[d.lvIdx + 1].name : null;
-  const needed = Math.max(0, 7 - d.qualifyingInWindow);
+  const needed = Math.max(0, d.required - d.qualifyingInWindow);
   const footerEl = document.getElementById('consistencyFooter');
-  if (isLocked) {
+  if (d.lvIdx >= LEVELS.length - 1) {
     footerEl.innerHTML = `<strong>You've reached the top — Mother status!</strong>`;
   } else if (needed === 0) {
-    footerEl.innerHTML = `<strong>Level-up threshold met!</strong> 7 qualifying days ✓`;
+    footerEl.innerHTML = `<strong>Level-up threshold met!</strong> ${d.required} ${countLabel} ✓`;
   } else {
-    let txt = `${needed} more qualifying day${needed !== 1 ? 's' : ''} to reach <strong>${nextLvName}</strong>`;
+    let txt = `${needed} more ${isPerfectSystem ? 'perfect day' : 'qualifying day'}${needed !== 1 ? 's' : ''} to reach <strong>${nextLvName}</strong>`;
     if (d.lvIdx > 0 && d.consecutiveMisses >= 3) {
       const missesLeft = Math.max(0, 5 - d.consecutiveMisses);
       if (missesLeft > 0) {
