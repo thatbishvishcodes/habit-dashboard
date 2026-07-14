@@ -234,19 +234,6 @@ body{min-height:100%;background:#0d0d0d;font-family:'Inter',sans-serif;color:#ff
 /* ── SINGLE BADGE ── */
 .single-badge{font-size:52px;line-height:1;margin:10px 0 4px;display:block;filter:drop-shadow(0 0 12px rgba(255,255,255,.2))}
 
-/* ── 8 WEEK CHALLENGE ── */
-.challenge-card{margin:0 20px 16px;background:rgba(13,148,136,.05);border:1px solid rgba(13,148,136,.18);border-radius:16px;padding:18px 20px}
-.challenge-title{font-family:'Press Start 2P',monospace;font-size:7px;color:var(--teal);letter-spacing:1px;margin-bottom:12px}
-.challenge-week{font-size:13px;color:#ccc;margin-bottom:10px;line-height:1.5}
-.challenge-week strong{color:#fff}
-.challenge-bar-outer{height:10px;background:#111;border:1px solid #222;border-radius:2px;overflow:hidden;margin-bottom:5px;position:relative}
-.challenge-bar-inner{height:100%;background:linear-gradient(90deg,var(--violet),var(--teal));transition:width 1s cubic-bezier(.4,0,.2,1);position:relative}
-.challenge-bar-inner::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent,transparent 10px,rgba(255,255,255,.07) 10px,rgba(255,255,255,.07) 12px)}
-.challenge-ticks{display:flex;justify-content:space-between;margin-bottom:8px;padding:0 1px}
-.challenge-tick{font-size:7px;color:#333;font-family:'Press Start 2P',monospace}
-.challenge-tick.done{color:var(--teal)}
-.challenge-meta{font-size:11px;color:#555;margin-bottom:5px;line-height:1.5}
-.challenge-msg{font-size:12px;color:rgba(255,255,255,.5);font-style:italic}
 
 /* ── DAILY BANNER ── */
 .daily-banner{background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.18);border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:11px;color:#888;text-align:center;line-height:1.6}
@@ -326,18 +313,6 @@ body{min-height:100%;background:#0d0d0d;font-family:'Inter',sans-serif;color:#ff
       </div>
       <div class="single-badge" id="singleBadge"></div>
       <div class="next-milestone-text" id="nextMilestoneText"></div>
-    </div>
-
-    <!-- 8 Week Challenge -->
-    <div class="challenge-card" id="challengeCard">
-      <div class="challenge-title">8 WEEK QUIT CHALLENGE</div>
-      <div class="challenge-week" id="challengeWeek">Week 1 of 8</div>
-      <div class="challenge-bar-outer">
-        <div class="challenge-bar-inner" id="challengeBarFill" style="width:0%"></div>
-      </div>
-      <div class="challenge-ticks" id="challengeTicks"></div>
-      <div class="challenge-meta" id="challengeMeta"></div>
-      <div class="challenge-msg" id="challengeMsg"></div>
     </div>
 
     <!-- Today -->
@@ -638,18 +613,6 @@ const MILESTONES = [
   { hrs:1000, icon:'👑' }
 ];
 
-const CHALLENGE_START = '2026-04-19';
-const CHALLENGE_WEEK_TARGETS = ['Diva','Starlet','Popstar','Headliner','Superstar','Legend','Icon–Sensation','Phenomenon'];
-const CHALLENGE_WEEK_MSGS = [
-  "Building the foundation. You've got this.",
-  "Medication starts. The game changes now.",
-  "Halfway to Headliner. Keep spacing.",
-  "Half your day is yours now.",
-  "More than half vape free. Feel that.",
-  "Legend territory. This is real.",
-  "Almost there. Don't stop now.",
-  "Final week. Phenomenon awaits."
-];
 
 const MISSED_QUOTES = [
   "You are what you love",
@@ -1460,39 +1423,6 @@ function renderVape(d) {
     nmEl.innerHTML = `<strong style="color:var(--teal)">All milestones unlocked 👑</strong>`;
   }
 
-  // ── 8 Week Challenge ──
-  const [csy, csm, csd] = CHALLENGE_START.split('-').map(Number);
-  const [tdy, tdm, tdd] = todayIST.split('-').map(Number);
-  const challengeStartMs = Date.UTC(csy, csm-1, csd);
-  const todayMs = Date.UTC(tdy, tdm-1, tdd);
-  const daysSinceStart = Math.floor((todayMs - challengeStartMs) / 86400000);
-  const TOTAL_CHALLENGE_DAYS = 56;
-  const weekNum = daysSinceStart < 0 ? 0 : Math.min(Math.floor(daysSinceStart / 7) + 1, 8);
-  const weeksComplete = daysSinceStart < 0 ? 0 : Math.min(Math.floor(daysSinceStart / 7), 8);
-  const daysLeft = Math.max(0, TOTAL_CHALLENGE_DAYS - daysSinceStart - 1);
-  const challengeDone = daysSinceStart >= TOTAL_CHALLENGE_DAYS;
-  const pct = Math.max(0, Math.min(100, (daysSinceStart / TOTAL_CHALLENGE_DAYS) * 100));
-  document.getElementById('challengeBarFill').style.width = pct + '%';
-  // Tick marks for 8 weeks
-  document.getElementById('challengeTicks').innerHTML =
-    Array.from({length:8}, (_,i) =>
-      `<span class="challenge-tick${i < weeksComplete ? ' done' : ''}">W${i+1}</span>`
-    ).join('');
-  if (daysSinceStart < 0) {
-    document.getElementById('challengeWeek').textContent = 'Challenge starts 19 Apr 2026';
-    document.getElementById('challengeMeta').textContent = '';
-    document.getElementById('challengeMsg').textContent = '';
-  } else if (challengeDone) {
-    document.getElementById('challengeWeek').innerHTML = `<span style="color:var(--teal)">✓ All 8 Weeks Complete</span>`;
-    document.getElementById('challengeMeta').textContent = `Current level: ${d.lv.name}`;
-    document.getElementById('challengeMsg').textContent = 'You did it. Now go further.';
-  } else {
-    document.getElementById('challengeWeek').innerHTML =
-      `Week <strong>${weekNum}</strong> of 8 &nbsp;·&nbsp; Target: <strong>${CHALLENGE_WEEK_TARGETS[weekNum-1]}</strong>`;
-    document.getElementById('challengeMeta').textContent =
-      `${daysLeft} day${daysLeft !== 1 ? 's' : ''} remaining · Current: ${d.lv.name}`;
-    document.getElementById('challengeMsg').textContent = CHALLENGE_WEEK_MSGS[weekNum-1];
-  }
 
   // ── Daily remaining banner ──
   const dailyGoal = d.lv.dailyGoal;
